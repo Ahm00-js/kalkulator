@@ -67,7 +67,6 @@
       50% { transform: translate(20px, -30px) scale(1.08); }
     }
 
-    /* Raspored: na malim ekranima jedna kolona, na širokim calc + historija */
     .wrap {
       position: relative;
       z-index: 1;
@@ -113,7 +112,6 @@
       50% { text-shadow: 0 0 14px rgba(42, 82, 152, 0.4); }
     }
 
-    /* Ekran računa */
     .red {
       display: grid;
       grid-template-columns: 1fr auto 1fr;
@@ -156,7 +154,6 @@
       cursor: pointer;
     }
 
-    /* Tastatura */
     .tastatura {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -193,9 +190,8 @@
     .tipka.fn { color: var(--fn-tekst); background: var(--fn-bg); }
 
     #izracunaj {
-      grid-column: 4;
-      grid-row: 4 / span 2;
-      min-height: 0;
+      grid-column: 1 / -1;
+      min-height: clamp(56px, 13vw, 66px);
       font-size: clamp(1.6rem, 5vw, 2rem);
       color: var(--bijela);
       background: linear-gradient(135deg, var(--plava), var(--svijetla));
@@ -212,7 +208,7 @@
       }
     }
 
-    #izracunaj:active { transform: scale(0.96); }
+    #izracunaj:active { transform: scale(0.98); }
 
     .ripple {
       position: absolute;
@@ -246,7 +242,6 @@
       to { opacity: 1; transform: translateY(0) scale(1); }
     }
 
-    /* Historija */
     h2 {
       margin: 0 0 12px;
       font-size: 0.95rem;
@@ -327,26 +322,29 @@
       <div class="tastatura">
         <button class="tipka fn" data-k="C">C</button>
         <button class="tipka fn" data-k="⌫">⌫</button>
-        <button class="tipka op" data-k="/">÷</button>
-        <button class="tipka op" data-k="*">×</button>
+        <button class="tipka op" data-k="√">√</button>
+        <button class="tipka op" data-k="%">%</button>
 
         <button class="tipka" data-k="7">7</button>
         <button class="tipka" data-k="8">8</button>
         <button class="tipka" data-k="9">9</button>
-        <button class="tipka op" data-k="-">−</button>
+        <button class="tipka op" data-k="/">÷</button>
 
         <button class="tipka" data-k="4">4</button>
         <button class="tipka" data-k="5">5</button>
         <button class="tipka" data-k="6">6</button>
-        <button class="tipka op" data-k="+">+</button>
+        <button class="tipka op" data-k="*">×</button>
 
         <button class="tipka" data-k="1">1</button>
         <button class="tipka" data-k="2">2</button>
         <button class="tipka" data-k="3">3</button>
-        <button id="izracunaj">=</button>
+        <button class="tipka op" data-k="-">−</button>
 
         <button class="tipka" data-k="0" style="grid-column: span 2;">0</button>
         <button class="tipka" data-k=".">.</button>
+        <button class="tipka op" data-k="+">+</button>
+
+        <button id="izracunaj">=</button>
       </div>
 
       <p id="rezultat" aria-live="polite"></p>

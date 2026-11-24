@@ -22,6 +22,7 @@ b.addEventListener("click", () => postaviAktivno(b));
 postaviAktivno(a);
 
 const OPERACIJE = { "+": "+", "-": "-", "*": "*", "x": "*", "X": "*", "/": "/" };
+const UNARNE = ["√", "%"];
 
 function unesi(znak) {
   if (znak === "C") {
@@ -36,6 +37,10 @@ function unesi(znak) {
     aktivno.value = aktivno.value.slice(0, -1);
     return;
   }
+  if (UNARNE.includes(znak)) {
+    izvrsiUnarnu(znak);
+    return;
+  }
   if (OPERACIJE[znak]) {
     op.value = OPERACIJE[znak];
     if (a.value !== "") postaviAktivno(b);
@@ -48,6 +53,38 @@ function unesi(znak) {
     return;
   }
   aktivno.value += znak;
+}
+
+async function izvrsiUnarnu(tip) {
+  const x = parseFloat(a.value);
+  if (isNaN(x)) {
+    rezultat.textContent = "Unesi broj";
+    return;
+  }
+
+  let r;
+  if (tip === "√") {
+    if (x < 0) {
+      rezultat.textContent = "Greška: korijen negativnog broja";
+      return;
+    }
+    r = Math.sqrt(x);
+  } else {
+    r = x / 100;
+  }
+  rezultat.textContent = r;
+
+  const { error } = await db.from("istorija").insert({
+    broj_a: x,
+    operacija: tip,
+    broj_b: 0,
+    rezultat: String(r),
+  });
+  if (error) {
+    console.error(error);
+    return;
+  }
+  await ucitajIstoriju();
 }
 
 document.querySelectorAll(".tipka").forEach((t) => {
@@ -67,6 +104,12 @@ document.addEventListener("keydown", (e) => {
   } else if (OPERACIJE[k]) {
     e.preventDefault();
     unesi(k);
+  } else if (k === "%") {
+    e.preventDefault();
+    unesi("%");
+  } else if (k === "r" || k === "R") {
+    e.preventDefault();
+    unesi("√");
   } else if (k === "Enter" || k === "=") {
     e.preventDefault();
     btn.click();
@@ -78,6 +121,12 @@ document.addEventListener("keydown", (e) => {
     unesi("C");
   }
 });
+
+function opisiRed(red) {
+  if (red.operacija === "√") return `√${red.broj_a}`;
+  if (red.operacija === "%") return `${red.broj_a}%`;
+  return `${red.broj_a} ${red.operacija} ${red.broj_b}`;
+}
 
 async function ucitajIstoriju() {
   const { data, error } = await db
@@ -92,11 +141,19 @@ async function ucitajIstoriju() {
   }
 
   listaIstorije.innerHTML = "";
+  if (data.length === 0) {
+    const li = document.createElement("li");
+    li.className = "prazno";
+    li.textContent = "Još nema računa.";
+    listaIstorije.appendChild(li);
+    return;
+  }
+
   data.forEach((red) => {
     const li = document.createElement("li");
     const izraz = document.createElement("span");
     izraz.className = "izraz";
-    izraz.textContent = `${red.broj_a} ${red.operacija} ${red.broj_b}`;
+    izraz.textContent = opisiRed(red);
     const rez = document.createElement("span");
     rez.className = "rez";
     rez.textContent = `= ${red.rezultat}`;
