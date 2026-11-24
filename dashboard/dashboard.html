@@ -53,6 +53,7 @@
     }
     button.mala { background: #dce7fb; color: #2a5298; }
     button.opasnost { background: #fdecea; color: #c0392b; }
+    button.zuta { background: #fff4d6; color: #8a6100; }
     select, input {
       padding: 8px 10px;
       border: 2px solid #d7deea;
@@ -88,6 +89,9 @@
     th { color: #2a5298; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
     td input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
     td input[type="checkbox"]:disabled { opacity: 0.35; cursor: not-allowed; }
+    .badge { font-size: 0.8rem; padding: 3px 8px; border-radius: 8px; }
+    .badge.da { background: #e3f6ea; color: #1e7b44; }
+    .badge.ne { background: #fdecea; color: #c0392b; }
     .filteri { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
     .poruka { color: #c0392b; min-height: 1.2rem; margin: 8px 0 0; }
     .zivo { font-size: 0.85rem; color: #c9d6f0; margin-bottom: 8px; }
@@ -95,6 +99,7 @@
     .prijava-kutija input { width: 100%; height: 44px; margin-bottom: 10px; }
     .prijava-kutija button { width: 100%; height: 44px; }
     .tabela-wrap { overflow-x: auto; }
+    .audit td { font-size: 0.88rem; }
     @media (max-width: 700px) {
       .layout { flex-direction: column; }
       aside { width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; }
@@ -189,12 +194,19 @@
           <table>
             <thead>
               <tr>
-                <th>Email</th><th>Admin</th><th>Pregled</th><th>Računi</th><th>Izvještaji</th><th>Admini</th><th></th>
+                <th>Email</th><th>Admin</th><th>Pregled</th><th>Računi</th><th>Izvještaji</th><th>Admini</th><th>Status</th><th></th>
               </tr>
             </thead>
             <tbody id="tbodyAdmini"></tbody>
           </table>
           <p class="poruka" id="porukaAdmin"></p>
+        </div>
+        <div class="kartica tabela-wrap">
+          <h3>Audit log (zadnjih 100)</h3>
+          <table class="audit">
+            <thead><tr><th>Datum</th><th>Ko</th><th>Akcija</th><th>Detalji</th></tr></thead>
+            <tbody id="tbodyAudit"></tbody>
+          </table>
         </div>
       </div>
 

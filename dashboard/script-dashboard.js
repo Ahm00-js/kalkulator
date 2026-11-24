@@ -172,7 +172,7 @@ async function izvezi() {
   URL.revokeObjectURL(url);
 }
 
-/* ---------- Korisnici i dozvole ---------- */
+/* ---------- Korisnici, dozvole i status ---------- */
 async function ucitajAdmine() {
   const { data, error } = await db.rpc("lista_svih_korisnika");
   const tbody = el("tbodyAdmini");
@@ -194,15 +194,32 @@ async function ucitajAdmine() {
       SEKCIJE.forEach((s) => (sekcije[s].disabled = !jeAdmin.checked));
     });
 
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.textContent = "Sačuvaj";
-    btn.addEventListener("click", () => sacuvajDozvole(k.email, k.admin, jeAdmin.checked, SEKCIJE.filter((s) => sekcije[s].checked)));
+    const sacuvaj = document.createElement("button");
+    sacuvaj.type = "button";
+    sacuvaj.textContent = "Sačuvaj";
+    sacuvaj.addEventListener("click", () =>
+      sacuvajDozvole(k.email, k.admin, jeAdmin.checked, SEKCIJE.filter((s) => sekcije[s].checked))
+    );
+
+    const status = document.createElement("td");
+    const badge = document.createElement("span");
+    badge.className = `badge ${k.aktivan ? "da" : "ne"}`;
+    badge.textContent = k.aktivan ? "Aktivan" : "Deaktiviran";
+    status.appendChild(badge);
 
     const tdAdmin = document.createElement("td");
     tdAdmin.appendChild(jeAdmin);
     const tdBtn = document.createElement("td");
-    tdBtn.appendChild(btn);
+    tdBtn.append(sacuvaj);
+
+    if (k.email !== korisnik) {
+      const akt = document.createElement("button");
+      akt.type = "button";
+      akt.className = k.aktivan ? "zuta" : "mala";
+      akt.textContent = k.aktivan ? "Deaktiviraj" : "Aktiviraj";
+      akt.addEventListener("click", () => promijeniAktivnost(k.email, !k.aktivan));
+      tdBtn.append(" ", akt);
+    }
 
     tr.append(td(k.email), tdAdmin);
     SEKCIJE.forEach((s) => {
@@ -210,10 +227,14 @@ async function ucitajAdmine() {
       c.appendChild(sekcije[s]);
       tr.appendChild(c);
     });
-    tr.appendChild(tdBtn);
+    tr.append(status, tdBtn);
     tbody.appendChild(tr);
   });
+
+  ucitajAudit();
 }
+
+let korisnik = null;
 
 async function sacuvajDozvole(email, bioAdmin, jeSada, izabrane) {
   el("porukaAdmin").textContent = "";
@@ -235,6 +256,44 @@ async function sacuvajDozvole(email, bioAdmin, jeSada, izabrane) {
   }
   el("porukaAdmin").textContent = `Sačuvano: ${email}`;
   ucitajAdmine();
+}
+
+async function promijeniAktivnost(email, aktivan) {
+  const poruka = aktivan ? `Aktivirati ${email}?` : `Deaktivirati ${email}? Neće se moći prijaviti.`;
+  if (!confirm(poruka)) return;
+  el("porukaAdmin").textContent = "";
+  const { error } = await db.rpc("postavi_aktivnost", { p_email: email, p_aktivan: aktivan });
+  if (error) {
+    el("porukaAdmin").textContent = error.message;
+    return;
+  }
+  el("porukaAdmin").textContent = `${aktivan ? "Aktiviran" : "Deaktiviran"}: ${email}`;
+  ucitajAdmine();
+}
+
+/* ---------- Audit log ---------- */
+async function ucitajAudit() {
+  const { data, error } = await db.rpc("lista_audit");
+  const tbody = el("tbodyAudit");
+  tbody.innerHTML = "";
+  if (error) {
+    el("porukaAdmin").textContent = error.message;
+    return;
+  }
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4">Nema zapisa.</td></tr>';
+    return;
+  }
+  data.forEach((r) => {
+    const tr = document.createElement("tr");
+    tr.append(
+      td(new Date(r.created_at).toLocaleString("bs-BA")),
+      td(r.admin_email ?? "–"),
+      td(r.akcija),
+      td(r.meta ?? "")
+    );
+    tbody.appendChild(tr);
+  });
 }
 
 /* ---------- Navigacija ---------- */
@@ -271,6 +330,7 @@ async function pokaziSadrzaj(session) {
   el("odjava").hidden = !session;
   el("prijava").hidden = !!admin;
   el("sadrzaj").hidden = !admin;
+  korisnik = session ? session.user.email : null;
   if (session && !admin) {
     el("porukaPrijava").textContent = "Ovaj nalog nema admin pristup.";
   }
