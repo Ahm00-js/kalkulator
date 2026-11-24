@@ -7,10 +7,42 @@ const op = document.getElementById("op");
 const b = document.getElementById("b");
 const btn = document.getElementById("izracunaj");
 const rezultat = document.getElementById("rezultat");
+const listaIstorije = document.getElementById("istorija");
+
+async function ucitajIstoriju() {
+  const { data, error } = await db
+    .from("istorija")
+    .select("broj_a, operacija, broj_b, rezultat")
+    .order("id", { ascending: false })
+    .limit(10);
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  listaIstorije.innerHTML = "";
+  data.forEach((red) => {
+    const li = document.createElement("li");
+    const izraz = document.createElement("span");
+    izraz.className = "izraz";
+    izraz.textContent = `${red.broj_a} ${red.operacija} ${red.broj_b}`;
+    const rez = document.createElement("span");
+    rez.className = "rez";
+    rez.textContent = `= ${red.rezultat}`;
+    li.append(izraz, rez);
+    listaIstorije.appendChild(li);
+  });
+}
 
 btn.addEventListener("click", async () => {
   const x = parseFloat(a.value);
   const y = parseFloat(b.value);
+  if (isNaN(x) || isNaN(y)) {
+    rezultat.textContent = "Unesi oba broja";
+    return;
+  }
+
   let r;
   switch (op.value) {
     case "+": r = x + y; break;
@@ -24,7 +56,13 @@ btn.addEventListener("click", async () => {
     broj_a: x,
     operacija: op.value,
     broj_b: y,
-    rezultat: String(r)
+    rezultat: String(r),
   });
-  if (error) console.error(error);
+  if (error) {
+    console.error(error);
+    return;
+  }
+  await ucitajIstoriju();
 });
+
+ucitajIstoriju();
