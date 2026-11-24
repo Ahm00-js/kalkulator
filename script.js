@@ -9,6 +9,76 @@ const btn = document.getElementById("izracunaj");
 const rezultat = document.getElementById("rezultat");
 const listaIstorije = document.getElementById("istorija");
 
+let aktivno = a;
+
+function postaviAktivno(el) {
+  aktivno = el;
+  a.classList.toggle("aktivno", el === a);
+  b.classList.toggle("aktivno", el === b);
+}
+
+a.addEventListener("click", () => postaviAktivno(a));
+b.addEventListener("click", () => postaviAktivno(b));
+postaviAktivno(a);
+
+const OPERACIJE = { "+": "+", "-": "-", "*": "*", "x": "*", "X": "*", "/": "/" };
+
+function unesi(znak) {
+  if (znak === "C") {
+    a.value = "";
+    b.value = "";
+    op.value = "+";
+    rezultat.textContent = "";
+    postaviAktivno(a);
+    return;
+  }
+  if (znak === "⌫") {
+    aktivno.value = aktivno.value.slice(0, -1);
+    return;
+  }
+  if (OPERACIJE[znak]) {
+    op.value = OPERACIJE[znak];
+    if (a.value !== "") postaviAktivno(b);
+    return;
+  }
+  if (znak === ".") {
+    if (!aktivno.value.includes(".")) {
+      aktivno.value = (aktivno.value || "0") + ".";
+    }
+    return;
+  }
+  aktivno.value += znak;
+}
+
+document.querySelectorAll(".tipka").forEach((t) => {
+  t.addEventListener("click", () => unesi(t.dataset.k));
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key;
+
+  if (/^[0-9]$/.test(k)) {
+    e.preventDefault();
+    unesi(k);
+  } else if (k === "." || k === ",") {
+    e.preventDefault();
+    unesi(".");
+  } else if (OPERACIJE[k]) {
+    e.preventDefault();
+    unesi(k);
+  } else if (k === "Enter" || k === "=") {
+    e.preventDefault();
+    btn.click();
+  } else if (k === "Backspace") {
+    e.preventDefault();
+    unesi("⌫");
+  } else if (k === "Escape" || k === "c" || k === "C") {
+    e.preventDefault();
+    unesi("C");
+  }
+});
+
 async function ucitajIstoriju() {
   const { data, error } = await db
     .from("istorija")

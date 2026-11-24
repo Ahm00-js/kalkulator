@@ -13,7 +13,6 @@
       --plava: #2a5298;
       --plava-svijetla: #5fa8ff;
       --bijela: #ffffff;
-      --siva: #e9eef7;
     }
 
     body {
@@ -62,7 +61,7 @@
       max-height: calc(100dvh - 32px);
       overflow-y: auto;
       background: rgba(255, 255, 255, 0.96);
-      padding: 28px 24px;
+      padding: 26px 22px;
       border-radius: 24px;
       box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
       animation: ulazak 0.7s cubic-bezier(.2,.8,.2,1) both;
@@ -74,7 +73,7 @@
     }
 
     h1 {
-      margin: 0 0 22px;
+      margin: 0 0 18px;
       font-size: 1.6rem;
       text-align: center;
       color: var(--plava-tamna);
@@ -89,32 +88,32 @@
 
     .red {
       display: flex;
-      gap: 10px;
-      margin-bottom: 14px;
+      gap: 8px;
+      margin-bottom: 4px;
     }
 
-    input[type="number"] {
+    .red input {
       flex: 1;
       min-width: 0;
       height: 56px;
-      padding: 0 14px;
+      padding: 0 12px;
       font-size: 1.3rem;
       text-align: right;
       border: 2px solid #d0d7e2;
       border-radius: 14px;
       background: #f7f9fd;
       outline: none;
+      cursor: pointer;
       transition: border-color 0.25s, box-shadow 0.25s, transform 0.15s;
     }
 
-    input[type="number"]:focus {
+    .red input.aktivno {
       border-color: var(--plava);
       box-shadow: 0 0 0 4px rgba(42, 82, 152, 0.18);
-      transform: translateY(-2px);
     }
 
     select {
-      width: 64px;
+      width: 60px;
       height: 56px;
       font-size: 1.4rem;
       font-weight: bold;
@@ -123,44 +122,60 @@
       border: 2px solid #d0d7e2;
       border-radius: 14px;
       background: #f7f9fd;
-      cursor: pointer;
       outline: none;
-      transition: transform 0.15s, border-color 0.25s;
     }
 
-    select:hover, select:focus {
-      border-color: var(--plava);
-      transform: translateY(-2px);
+    .tastatura {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 14px;
     }
+
+    .tipka {
+      height: 60px;
+      font-size: 1.4rem;
+      font-weight: bold;
+      color: var(--plava-tamna);
+      background: #eef2fa;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      box-shadow: 0 3px 0 #c8d3e6;
+      transition: transform 0.1s, box-shadow 0.1s, background 0.2s;
+      touch-action: manipulation;
+      user-select: none;
+    }
+
+    .tipka:hover { background: #e0e8f7; }
+
+    .tipka:active {
+      transform: translateY(3px);
+      box-shadow: 0 0 0 #c8d3e6;
+    }
+
+    .tipka.op { color: var(--plava); background: #dce7fb; }
+    .tipka.fn { color: #c0392b; background: #fdecea; }
 
     #izracunaj {
-      width: 100%;
-      height: 60px;
-      margin-top: 6px;
-      font-size: 1.5rem;
-      font-weight: bold;
+      grid-column: 4;
+      grid-row: 4 / span 2;
+      height: auto;
+      font-size: 1.8rem;
       color: var(--bijela);
       background: linear-gradient(135deg, var(--plava), var(--plava-svijetla));
       background-size: 200% 200%;
-      border: none;
-      border-radius: 16px;
-      cursor: pointer;
+      box-shadow: 0 6px 16px rgba(42, 82, 152, 0.4);
       position: relative;
       overflow: hidden;
-      box-shadow: 0 8px 20px rgba(42, 82, 152, 0.4);
-      transition: transform 0.15s, box-shadow 0.25s, background-position 0.5s;
-      touch-action: manipulation;
     }
 
     #izracunaj:hover {
       background-position: 100% 0;
-      box-shadow: 0 12px 26px rgba(42, 82, 152, 0.5);
-      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(42, 82, 152, 0.5);
     }
 
-    #izracunaj:active {
-      transform: scale(0.96);
-    }
+    #izracunaj:active { transform: scale(0.96); }
 
     .ripple {
       position: absolute;
@@ -176,7 +191,7 @@
     }
 
     #rezultat {
-      margin: 22px 0 0;
+      margin: 18px 0 0;
       min-height: 2.4rem;
       font-size: 2rem;
       font-weight: bold;
@@ -195,7 +210,7 @@
     }
 
     h2 {
-      margin: 26px 0 10px;
+      margin: 22px 0 10px;
       font-size: 1rem;
       color: var(--plava);
       text-transform: uppercase;
@@ -206,7 +221,7 @@
       list-style: none;
       margin: 0;
       padding: 0;
-      max-height: 320px;
+      max-height: 280px;
       overflow-y: auto;
     }
 
@@ -235,9 +250,10 @@
     }
 
     @media (max-width: 420px) {
-      .kalkulator { padding: 22px 18px; }
-      input[type="number"] { font-size: 1.15rem; }
-      select { width: 56px; }
+      .kalkulator { padding: 20px 14px; }
+      .red input { font-size: 1.15rem; }
+      select { width: 52px; }
+      .tipka { height: 54px; font-size: 1.25rem; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -254,17 +270,41 @@
     <h1>Kalkulator</h1>
 
     <div class="red">
-      <input type="number" id="a" inputmode="decimal" placeholder="0">
+      <input type="text" id="a" inputmode="decimal" readonly placeholder="0">
       <select id="op">
         <option value="+">+</option>
         <option value="-">-</option>
         <option value="*">×</option>
         <option value="/">÷</option>
       </select>
-      <input type="number" id="b" inputmode="decimal" placeholder="0">
+      <input type="text" id="b" inputmode="decimal" readonly placeholder="0">
     </div>
 
-    <button id="izracunaj">=</button>
+    <div class="tastatura">
+      <button class="tipka fn" data-k="C">C</button>
+      <button class="tipka fn" data-k="⌫">⌫</button>
+      <button class="tipka op" data-k="/">÷</button>
+      <button class="tipka op" data-k="*">×</button>
+
+      <button class="tipka" data-k="7">7</button>
+      <button class="tipka" data-k="8">8</button>
+      <button class="tipka" data-k="9">9</button>
+      <button class="tipka op" data-k="-">−</button>
+
+      <button class="tipka" data-k="4">4</button>
+      <button class="tipka" data-k="5">5</button>
+      <button class="tipka" data-k="6">6</button>
+      <button class="tipka op" data-k="+">+</button>
+
+      <button class="tipka" data-k="1">1</button>
+      <button class="tipka" data-k="2">2</button>
+      <button class="tipka" data-k="3">3</button>
+      <button id="izracunaj">=</button>
+
+      <button class="tipka" data-k="0" style="grid-column: span 2;">0</button>
+      <button class="tipka" data-k=".">.</button>
+    </div>
+
     <p id="rezultat"></p>
 
     <h2>Zadnjih 10 računa</h2>
