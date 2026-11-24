@@ -2,66 +2,103 @@ const SUPABASE_URL = "https://wvzejipxusngsuopzyic.supabase.co";
 const SUPABASE_KEY = "sb_publishable_E0-L4WIo2J9XQK-6YLg1cQ_mxSBaanx";
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const a = document.getElementById("a");
-const op = document.getElementById("op");
-const b = document.getElementById("b");
-const btn = document.getElementById("izracunaj");
-const rezultat = document.getElementById("rezultat");
-const listaIstorije = document.getElementById("istorija");
+const el = (id) => document.getElementById(id);
+const izrazPolje = el("izraz");
+const rezultat = el("rezultat");
+const listaIstorije = el("istorija");
+const authSekcija = el("auth");
+const app = el("app");
+const korisnik = el("korisnik");
+const odjavaBtn = el("odjava");
+const emailPolje = el("email");
+const lozinkaPolje = el("lozinka");
+const authPoruka = el("authPoruka");
 
-let aktivno = a;
+let izraz = "";
+let zadnjiRezultat = null;
+let jeRezultat = false;
 
-function postaviAktivno(el) {
-  aktivno = el;
-  a.classList.toggle("aktivno", el === a);
-  b.classList.toggle("aktivno", el === b);
+/* ---------- Tema ---------- */
+function primijeniTemu(tamna) {
+  document.body.classList.toggle("tamna", tamna);
+  localStorage.setItem("tema", tamna ? "tamna" : "svijetla");
 }
+primijeniTemu(localStorage.getItem("tema") === "tamna");
+el("temaBtn").addEventListener("click", () =>
+  primijeniTemu(!document.body.classList.contains("tamna"))
+);
 
-a.addEventListener("click", () => postaviAktivno(a));
-b.addEventListener("click", () => postaviAktivno(b));
-postaviAktivno(a);
+/* ---------- Računanje (redoslijed operacija) ---------- */
+function evaluate(s) {
+  let t = s.match(/\d+\.?\d*|[+\-*\/]/g);
+  if (!t) return null;
+  if (t[0] === "-") t = ["0", ...t];
+  if (isNaN(parseFloat(t[0]))) return null;
 
-const OPERACIJE = { "+": "+", "-": "-", "*": "*", "x": "*", "X": "*", "/": "/" };
-const UNARNE = ["√", "%"];
-
-function unesi(znak) {
-  if (znak === "C") {
-    a.value = "";
-    b.value = "";
-    op.value = "+";
-    rezultat.textContent = "";
-    postaviAktivno(a);
-    return;
-  }
-  if (znak === "⌫") {
-    aktivno.value = aktivno.value.slice(0, -1);
-    return;
-  }
-  if (UNARNE.includes(znak)) {
-    izvrsiUnarnu(znak);
-    return;
-  }
-  if (OPERACIJE[znak]) {
-    op.value = OPERACIJE[znak];
-    if (a.value !== "") postaviAktivno(b);
-    return;
-  }
-  if (znak === ".") {
-    if (!aktivno.value.includes(".")) {
-      aktivno.value = (aktivno.value || "0") + ".";
+  const vals = [parseFloat(t[0])];
+  const ops = [];
+  for (let i = 1; i < t.length; i += 2) {
+    const o = t[i];
+    const n = parseFloat(t[i + 1]);
+    if (isNaN(n)) return null;
+    if (o === "*" || o === "/") {
+      const p = vals.pop();
+      if (o === "/" && n === 0) throw new Error("NULA");
+      vals.push(o === "*" ? p * n : p / n);
+    } else {
+      ops.push(o);
+      vals.push(n);
     }
-    return;
   }
-  aktivno.value += znak;
+  let r = vals[0];
+  ops.forEach((o, j) => {
+    r = o === "+" ? r + vals[j + 1] : r - vals[j + 1];
+  });
+  return Number(r.toFixed(10));
 }
 
-async function izvrsiUnarnu(tip) {
-  const x = parseFloat(a.value);
-  if (isNaN(x)) {
-    rezultat.textContent = "Unesi broj";
-    return;
-  }
+/* ---------- Unos ---------- */
+const OP = { "+": "+", "-": "-", "*": "*", "/": "/", x: "*", X: "*" };
 
+function dodaj(znak) {
+  if (znak === "C") {
+    izraz = "";
+    rezultat.textContent = "";
+    jeRezultat = false;
+  } else if (znak === "⌫") {
+    izraz = izraz.slice(0, -1);
+    jeRezultat = false;
+  } else if (znak === "√" || znak === "%") {
+    primijeniFunkciju(znak);
+  } else if (znak === "ANS") {
+    umetniAns();
+  } else {
+    if (jeRezultat && /[0-9.]/.test(znak)) izraz = "";
+    jeRezultat = false;
+
+    if (/[0-9]/.test(znak)) {
+      izraz += znak;
+    } else if (znak === ".") {
+      const m = izraz.match(/[\d.]*$/)[0];
+      if (!m.includes(".")) izraz += m === "" ? "0." : ".";
+    } else if (OP[znak]) {
+      const op = OP[znak];
+      if (izraz === "") {
+        if (op === "-") izraz = "-";
+      } else if (/[+\-*\/]$/.test(izraz)) {
+        izraz = izraz.slice(0, -1) + op;
+      } else {
+        izraz += op;
+      }
+    }
+  }
+  izrazPolje.value = izraz;
+}
+
+function primijeniFunkciju(tip) {
+  const m = izraz.match(/(\d+\.?\d*)$/);
+  if (!m) return;
+  const x = parseFloat(m[1]);
   let r;
   if (tip === "√") {
     if (x < 0) {
@@ -72,14 +109,55 @@ async function izvrsiUnarnu(tip) {
   } else {
     r = x / 100;
   }
-  rezultat.textContent = r;
+  izraz = izraz.slice(0, m.index) + String(Number(r.toFixed(10)));
+  jeRezultat = false;
+  izrazPolje.value = izraz;
+}
 
-  const { error } = await db.from("istorija").insert({
-    broj_a: x,
-    operacija: tip,
-    broj_b: 0,
-    rezultat: String(r),
-  });
+function umetniAns() {
+  if (jeRezultat) izraz = "";
+  if (zadnjiRezultat === null) {
+    rezultat.textContent = "Nema prethodnog rezultata";
+    return;
+  }
+  if (zadnjiRezultat < 0) {
+    rezultat.textContent = "ANS je negativan, unesi ručno";
+    return;
+  }
+  if (/[\d.]$/.test(izraz)) {
+    rezultat.textContent = "Prvo unesi operaciju";
+    return;
+  }
+  izraz += String(zadnjiRezultat);
+  jeRezultat = false;
+  izrazPolje.value = izraz;
+}
+
+/* ---------- Izračun i čuvanje ---------- */
+async function izracunaj() {
+  if (!izraz) return;
+  let r;
+  try {
+    r = evaluate(izraz);
+  } catch (e) {
+    rezultat.textContent = "Greška: dijeljenje nulom";
+    return;
+  }
+  if (r === null || !isFinite(r)) {
+    rezultat.textContent = "Nepotpun izraz";
+    return;
+  }
+
+  const tekst = String(r);
+  rezultat.textContent = tekst;
+  zadnjiRezultat = r;
+
+  const { error } = await db.from("istorija").insert({ izraz, rezultat: tekst });
+
+  izraz = tekst;
+  izrazPolje.value = izraz;
+  jeRezultat = true;
+
   if (error) {
     console.error(error);
     return;
@@ -87,51 +165,20 @@ async function izvrsiUnarnu(tip) {
   await ucitajIstoriju();
 }
 
-document.querySelectorAll(".tipka").forEach((t) => {
-  t.addEventListener("click", () => unesi(t.dataset.k));
-});
-
-document.addEventListener("keydown", (e) => {
-  if (e.ctrlKey || e.metaKey || e.altKey) return;
-  const k = e.key;
-
-  if (/^[0-9]$/.test(k)) {
-    e.preventDefault();
-    unesi(k);
-  } else if (k === "." || k === ",") {
-    e.preventDefault();
-    unesi(".");
-  } else if (OPERACIJE[k]) {
-    e.preventDefault();
-    unesi(k);
-  } else if (k === "%") {
-    e.preventDefault();
-    unesi("%");
-  } else if (k === "r" || k === "R") {
-    e.preventDefault();
-    unesi("√");
-  } else if (k === "Enter" || k === "=") {
-    e.preventDefault();
-    btn.click();
-  } else if (k === "Backspace") {
-    e.preventDefault();
-    unesi("⌫");
-  } else if (k === "Escape" || k === "c" || k === "C") {
-    e.preventDefault();
-    unesi("C");
+/* ---------- Historija ---------- */
+async function obrisi(id) {
+  const { error } = await db.from("istorija").delete().eq("id", id);
+  if (error) {
+    console.error(error);
+    return;
   }
-});
-
-function opisiRed(red) {
-  if (red.operacija === "√") return `√${red.broj_a}`;
-  if (red.operacija === "%") return `${red.broj_a}%`;
-  return `${red.broj_a} ${red.operacija} ${red.broj_b}`;
+  await ucitajIstoriju();
 }
 
 async function ucitajIstoriju() {
   const { data, error } = await db
     .from("istorija")
-    .select("broj_a, operacija, broj_b, rezultat")
+    .select("id, izraz, rezultat, broj_a, operacija, broj_b")
     .order("id", { ascending: false })
     .limit(10);
 
@@ -151,45 +198,93 @@ async function ucitajIstoriju() {
 
   data.forEach((red) => {
     const li = document.createElement("li");
-    const izraz = document.createElement("span");
-    izraz.className = "izraz";
-    izraz.textContent = opisiRed(red);
+
+    const izrazSpan = document.createElement("span");
+    izrazSpan.className = "izraz";
+    izrazSpan.textContent = red.izraz ?? `${red.broj_a} ${red.operacija} ${red.broj_b}`;
+
+    const desno = document.createElement("div");
+    desno.className = "desno";
+
     const rez = document.createElement("span");
     rez.className = "rez";
     rez.textContent = `= ${red.rezultat}`;
-    li.append(izraz, rez);
+
+    const brisi = document.createElement("button");
+    brisi.className = "brisi";
+    brisi.type = "button";
+    brisi.setAttribute("aria-label", "Obriši račun");
+    brisi.textContent = "×";
+    brisi.addEventListener("click", () => obrisi(red.id));
+
+    desno.append(rez, brisi);
+    li.append(izrazSpan, desno);
     listaIstorije.appendChild(li);
   });
 }
 
-btn.addEventListener("click", async () => {
-  const x = parseFloat(a.value);
-  const y = parseFloat(b.value);
-  if (isNaN(x) || isNaN(y)) {
-    rezultat.textContent = "Unesi oba broja";
-    return;
-  }
+/* ---------- Prijava ---------- */
+async function prijava() {
+  authPoruka.textContent = "";
+  const { error } = await db.auth.signInWithPassword({
+    email: emailPolje.value.trim(),
+    password: lozinkaPolje.value,
+  });
+  if (error) authPoruka.textContent = error.message;
+}
 
-  let r;
-  switch (op.value) {
-    case "+": r = x + y; break;
-    case "-": r = x - y; break;
-    case "*": r = x * y; break;
-    case "/": r = y === 0 ? "Greška: dijeljenje nulom" : x / y; break;
-  }
-  rezultat.textContent = r;
-
-  const { error } = await db.from("istorija").insert({
-    broj_a: x,
-    operacija: op.value,
-    broj_b: y,
-    rezultat: String(r),
+async function registracija() {
+  authPoruka.textContent = "";
+  const { data, error } = await db.auth.signUp({
+    email: emailPolje.value.trim(),
+    password: lozinkaPolje.value,
   });
   if (error) {
-    console.error(error);
+    authPoruka.textContent = error.message;
     return;
   }
-  await ucitajIstoriju();
-});
+  if (!data.session) {
+    authPoruka.textContent = "Registracija uspjela. Prijavi se.";
+  }
+}
 
-ucitajIstoriju();
+function prikaziStanje(session) {
+  const prijavljen = !!session;
+  authSekcija.hidden = prijavljen;
+  app.hidden = !prijavljen;
+  korisnik.hidden = !prijavljen;
+  odjavaBtn.hidden = !prijavljen;
+  if (prijavljen) {
+    korisnik.textContent = session.user.email;
+    ucitajIstoriju();
+  }
+}
+
+db.auth.onAuthStateChange((_event, session) => prikaziStanje(session));
+
+el("prijavi").addEventListener("click", prijava);
+el("registruj").addEventListener("click", registracija);
+odjavaBtn.addEventListener("click", () => db.auth.signOut());
+
+/* ---------- Dugmad i tastatura ---------- */
+document.querySelectorAll(".tipka").forEach((t) => {
+  t.addEventListener("click", () => dodaj(t.dataset.k));
+});
+el("izracunaj").addEventListener("click", izracunaj);
+
+document.addEventListener("keydown", (e) => {
+  if (app.hidden) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  const k = e.key;
+
+  if (/^[0-9]$/.test(k)) { e.preventDefault(); dodaj(k); }
+  else if (k === "." || k === ",") { e.preventDefault(); dodaj("."); }
+  else if (OP[k]) { e.preventDefault(); dodaj(k); }
+  else if (k === "%") { e.preventDefault(); dodaj("%"); }
+  else if (k === "r" || k === "R") { e.preventDefault(); dodaj("√"); }
+  else if (k === "a" || k === "A") { e.preventDefault(); dodaj("ANS"); }
+  else if (k === "Enter" || k === "=") { e.preventDefault(); izracunaj(); }
+  else if (k === "Backspace") { e.preventDefault(); dodaj("⌫"); }
+  else if (k === "Escape" || k === "c" || k === "C") { e.preventDefault(); dodaj("C"); }
+});
