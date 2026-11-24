@@ -5,6 +5,7 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const el = (id) => document.getElementById(id);
 let grafDan = null;
 let grafOp = null;
+let realtimeAktivan = false;
 
 async function provjeriAdmina() {
   const { data, error } = await db.rpc("je_admin");
@@ -52,6 +53,8 @@ async function ucitajStatistiku() {
 }
 
 function pokreniRealtime() {
+  if (realtimeAktivan) return;
+  realtimeAktivan = true;
   db.channel("istorija-promjene")
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "istorija" }, () => {
       ucitajStatistiku();
