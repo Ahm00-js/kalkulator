@@ -33,6 +33,17 @@
       color: #fff;
       font-weight: 600;
       cursor: pointer;
+      font-size: 0.95rem;
+    }
+    button.mala { background: #dce7fb; color: #2a5298; }
+    button.opasnost { background: #fdecea; color: #c0392b; }
+    select, input[type="email"], input[type="password"] {
+      padding: 8px 10px;
+      border: 2px solid #d7deea;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      background: #fff;
+      color: #1d2a44;
     }
     .grid {
       max-width: 1100px;
@@ -59,6 +70,8 @@
       text-transform: uppercase;
       letter-spacing: 1px;
     }
+    .filteri { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .filteri .razmak { margin-left: auto; }
     .brojevi { display: flex; gap: 12px; flex-wrap: wrap; }
     .broj {
       flex: 1;
@@ -71,8 +84,20 @@
     .broj .vrijednost { font-size: 1.8rem; font-weight: bold; color: #0b1f4a; }
     .broj .oznaka { font-size: 0.85rem; color: #6b7a99; }
     canvas { max-height: 320px; }
-    .poruka { color: #c0392b; min-height: 1.2rem; }
-    .zivo { font-size: 0.85rem; color: #2a5298; }
+    .poruka { color: #c0392b; min-height: 1.2rem; margin: 0; }
+    .zivo { font-size: 0.85rem; color: #2a5298; margin-right: 10px; }
+    .admini { list-style: none; padding: 0; margin: 0 0 14px; }
+    .admini li {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f4f7fc;
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+    }
+    .dodaj { display: flex; gap: 10px; flex-wrap: wrap; }
+    .dodaj input { flex: 1; min-width: 200px; }
   </style>
 </head>
 <body>
@@ -86,17 +111,32 @@
 
   <section class="kartica" id="prijava" hidden style="max-width:400px;margin:0 auto;">
     <h2>Prijava (samo admin)</h2>
-    <input type="email" id="email" placeholder="Email" style="width:100%;height:44px;padding:0 12px;margin-bottom:10px;">
-    <input type="password" id="lozinka" placeholder="Lozinka" style="width:100%;height:44px;padding:0 12px;margin-bottom:10px;">
+    <input type="email" id="email" placeholder="Email" style="width:100%;height:44px;margin-bottom:10px;">
+    <input type="password" id="lozinka" placeholder="Lozinka" style="width:100%;height:44px;margin-bottom:10px;">
     <button id="prijavi" type="button" style="width:100%;height:44px;">Prijavi se</button>
     <p class="poruka" id="porukaPrijava"></p>
   </section>
 
   <div class="grid" id="sadrzaj" hidden>
     <section class="kartica siri">
+      <div class="filteri">
+        <select id="period" aria-label="Period">
+          <option value="7">Zadnjih 7 dana</option>
+          <option value="30">Zadnjih 30 dana</option>
+          <option value="">Sve</option>
+        </select>
+        <select id="korisnikFilter" aria-label="Korisnik">
+          <option value="">Svi korisnici</option>
+        </select>
+        <button id="izvezi" type="button" class="mala">Izvezi CSV</button>
+        <span class="razmak"></span>
+      </div>
+    </section>
+
+    <section class="kartica siri">
       <h2>Pregled</h2>
       <div class="brojevi">
-        <div class="broj"><div class="vrijednost" id="ukupno">0</div><div class="oznaka">Ukupno računa</div></div>
+        <div class="broj"><div class="vrijednost" id="ukupno">0</div><div class="oznaka">Računa u periodu</div></div>
         <div class="broj"><div class="vrijednost" id="danas">0</div><div class="oznaka">Danas</div></div>
         <div class="broj"><div class="vrijednost" id="najcesca">–</div><div class="oznaka">Najčešća operacija</div></div>
       </div>
@@ -112,7 +152,17 @@
       <canvas id="grafOp"></canvas>
     </section>
 
-    <p class="poruka" id="porukaGreska"></p>
+    <section class="kartica siri">
+      <h2>Admini</h2>
+      <ul class="admini" id="listaAdmina"></ul>
+      <div class="dodaj">
+        <input type="email" id="noviAdmin" placeholder="Email novog admina">
+        <button id="dodajAdmina" type="button">Dodaj admina</button>
+      </div>
+      <p class="poruka" id="porukaAdmin"></p>
+    </section>
+
+    <p class="poruka siri" id="porukaGreska"></p>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
