@@ -6,103 +6,222 @@
   <title>Kalkulator</title>
   <link rel="icon" href="data:,">
   <style>
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    :root {
+      --plava-tamna: #0b1f4a;
+      --plava: #2a5298;
+      --plava-svijetla: #5fa8ff;
+      --bijela: #ffffff;
+      --siva: #e9eef7;
+    }
 
     body {
       margin: 0;
       min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(135deg, #1e3c72, #2a5298);
+      padding: 16px;
       font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      background: linear-gradient(135deg, #0b1f4a, #2a5298, #5fa8ff);
+      background-size: 300% 300%;
+      animation: pozadina 14s ease infinite;
+      overflow: hidden;
+    }
+
+    @keyframes pozadina {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* Plutajući krugovi u pozadini */
+    .krug {
+      position: fixed;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      animation: lebdi 12s ease-in-out infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .krug:nth-child(1) { width: 260px; height: 260px; top: -60px; left: -60px; }
+    .krug:nth-child(2) { width: 180px; height: 180px; bottom: -40px; right: -40px; animation-delay: -4s; }
+    .krug:nth-child(3) { width: 120px; height: 120px; top: 40%; right: 10%; animation-delay: -8s; }
+
+    @keyframes lebdi {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(20px, -30px) scale(1.08); }
     }
 
     .kalkulator {
-      background: #ffffff;
-      padding: 24px;
-      border-radius: 16px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-      width: 340px;
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 380px;
+      background: rgba(255, 255, 255, 0.96);
+      padding: 28px 24px;
+      border-radius: 24px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+      animation: ulazak 0.7s cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    @keyframes ulazak {
+      from { opacity: 0; transform: translateY(40px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
     }
 
     h1 {
-      margin: 0 0 20px;
-      font-size: 1.5rem;
+      margin: 0 0 22px;
+      font-size: 1.6rem;
       text-align: center;
-      color: #1e3c72;
+      color: var(--plava-tamna);
+      letter-spacing: 1px;
+      animation: sjaj 3s ease-in-out infinite;
+    }
+
+    @keyframes sjaj {
+      0%, 100% { text-shadow: 0 0 0 rgba(42, 82, 152, 0); }
+      50% { text-shadow: 0 0 14px rgba(42, 82, 152, 0.45); }
     }
 
     .red {
       display: flex;
-      gap: 8px;
-      margin-bottom: 12px;
+      gap: 10px;
+      margin-bottom: 14px;
     }
 
     input[type="number"] {
       flex: 1;
       min-width: 0;
-      padding: 10px;
-      font-size: 1.1rem;
+      height: 56px;
+      padding: 0 14px;
+      font-size: 1.3rem;
+      text-align: right;
       border: 2px solid #d0d7e2;
-      border-radius: 8px;
+      border-radius: 14px;
+      background: #f7f9fd;
       outline: none;
+      transition: border-color 0.25s, box-shadow 0.25s, transform 0.15s;
     }
 
     input[type="number"]:focus {
-      border-color: #2a5298;
+      border-color: var(--plava);
+      box-shadow: 0 0 0 4px rgba(42, 82, 152, 0.18);
+      transform: translateY(-2px);
     }
 
     select {
-      padding: 10px;
-      font-size: 1.1rem;
+      width: 64px;
+      height: 56px;
+      font-size: 1.4rem;
+      font-weight: bold;
+      text-align: center;
+      color: var(--plava);
       border: 2px solid #d0d7e2;
-      border-radius: 8px;
-      background: #f5f7fb;
+      border-radius: 14px;
+      background: #f7f9fd;
       cursor: pointer;
+      outline: none;
+      transition: transform 0.15s, border-color 0.25s;
+    }
+
+    select:hover, select:focus {
+      border-color: var(--plava);
+      transform: translateY(-2px);
     }
 
     #izracunaj {
       width: 100%;
-      padding: 12px;
-      font-size: 1.2rem;
+      height: 60px;
+      margin-top: 6px;
+      font-size: 1.5rem;
       font-weight: bold;
-      color: #ffffff;
-      background: #2a5298;
+      color: var(--bijela);
+      background: linear-gradient(135deg, var(--plava), var(--plava-svijetla));
+      background-size: 200% 200%;
       border: none;
-      border-radius: 8px;
+      border-radius: 16px;
       cursor: pointer;
-      transition: background 0.2s;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 8px 20px rgba(42, 82, 152, 0.4);
+      transition: transform 0.15s, box-shadow 0.25s, background-position 0.5s;
+      touch-action: manipulation;
     }
 
     #izracunaj:hover {
-      background: #1e3c72;
+      background-position: 100% 0;
+      box-shadow: 0 12px 26px rgba(42, 82, 152, 0.5);
+      transform: translateY(-2px);
+    }
+
+    #izracunaj:active {
+      transform: scale(0.96);
+    }
+
+    /* Ripple efekat na klik */
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.55);
+      transform: scale(0);
+      animation: ripple 0.6s linear;
+      pointer-events: none;
+    }
+
+    @keyframes ripple {
+      to { transform: scale(4); opacity: 0; }
     }
 
     #rezultat {
-      margin: 20px 0 0;
-      min-height: 2rem;
-      font-size: 1.6rem;
+      margin: 22px 0 0;
+      min-height: 2.4rem;
+      font-size: 2rem;
       font-weight: bold;
       text-align: right;
-      color: #1e3c72;
+      color: var(--plava-tamna);
       word-break: break-all;
+    }
+
+    #rezultat.pojavi {
+      animation: pojavi 0.5s cubic-bezier(.2,.8,.2,1);
+    }
+
+    @keyframes pojavi {
+      from { opacity: 0; transform: translateY(12px) scale(0.9); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @media (max-width: 420px) {
+      .kalkulator { padding: 22px 18px; }
+      input[type="number"] { font-size: 1.15rem; }
+      select { width: 56px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
     }
   </style>
 </head>
 <body>
+  <div class="krug"></div>
+  <div class="krug"></div>
+  <div class="krug"></div>
+
   <div class="kalkulator">
     <h1>Kalkulator</h1>
 
     <div class="red">
-      <input type="number" id="a">
+      <input type="number" id="a" inputmode="decimal" placeholder="0">
       <select id="op">
         <option value="+">+</option>
         <option value="-">-</option>
-        <option value="*">*</option>
-        <option value="/">/</option>
+        <option value="*">×</option>
+        <option value="/">÷</option>
       </select>
-      <input type="number" id="b">
+      <input type="number" id="b" inputmode="decimal" placeholder="0">
     </div>
 
     <button id="izracunaj">=</button>
@@ -111,5 +230,28 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js"></script>
+  <script>
+    // Ripple efekat na dugmetu
+    const dugme = document.getElementById("izracunaj");
+    dugme.addEventListener("click", (e) => {
+      const r = dugme.getBoundingClientRect();
+      const span = document.createElement("span");
+      const d = Math.max(r.width, r.height);
+      span.className = "ripple";
+      span.style.width = span.style.height = d + "px";
+      span.style.left = (e.clientX - r.left - d / 2) + "px";
+      span.style.top = (e.clientY - r.top - d / 2) + "px";
+      dugme.appendChild(span);
+      setTimeout(() => span.remove(), 600);
+    });
+
+    // Animacija rezultata pri svakoj promjeni
+    const rez = document.getElementById("rezultat");
+    new MutationObserver(() => {
+      rez.classList.remove("pojavi");
+      void rez.offsetWidth;
+      rez.classList.add("pojavi");
+    }).observe(rez, { childList: true, characterData: true, subtree: true });
+  </script>
 </body>
 </html>
