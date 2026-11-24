@@ -10,6 +10,7 @@ const authSekcija = el("auth");
 const app = el("app");
 const korisnik = el("korisnik");
 const odjavaBtn = el("odjava");
+const dashboardBtn = el("dashboardBtn");
 const emailPolje = el("email");
 const lozinkaPolje = el("lozinka");
 const authPoruka = el("authPoruka");
@@ -248,15 +249,23 @@ async function registracija() {
   }
 }
 
-function prikaziStanje(session) {
+async function provjeriAdmina() {
+  const { data, error } = await db.rpc("je_admin");
+  return !error && data === true;
+}
+
+async function prikaziStanje(session) {
   const prijavljen = !!session;
   authSekcija.hidden = prijavljen;
   app.hidden = !prijavljen;
   korisnik.hidden = !prijavljen;
   odjavaBtn.hidden = !prijavljen;
+  dashboardBtn.hidden = true;
+
   if (prijavljen) {
     korisnik.textContent = session.user.email;
     ucitajIstoriju();
+    dashboardBtn.hidden = !(await provjeriAdmina());
   }
 }
 
