@@ -4,10 +4,12 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const el = (id) => document.getElementById(id);
 const NASLOVI = { pregled: "Pregled", racuni: "Računi", izvjestaji: "Izvještaji", admini: "Admini" };
+const SEKCIJE = ["pregled", "racuni", "izvjestaji", "admini"];
 let grafDan = null;
 let grafOp = null;
 let realtimeAktivan = false;
 let aktivniTab = "pregled";
+let dozvole = [];
 
 /* ---------- Pomoćne ---------- */
 function filteriZa(periodId, korisnikId) {
@@ -17,7 +19,6 @@ function filteriZa(periodId, korisnikId) {
 }
 
 function sinhroniziFiltere(izvor) {
-  // Sve filtere držimo usklađene, da promjena u jednom tabu važi svuda
   ["periodPregled", "periodRacuni", "periodIzvj"].forEach((id) => {
     if (id !== izvor) el(id).value = el(izvor).value;
   });
@@ -26,11 +27,35 @@ function sinhroniziFiltere(izvor) {
   });
 }
 
+function td(tekst) {
+  const c = document.createElement("td");
+  c.textContent = tekst;
+  return c;
+}
+
+function checkbox(checked, disabled = false) {
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = checked;
+  cb.disabled = disabled;
+  return cb;
+}
+
 async function provjeriAdmina() {
   const { data, error } = await db.rpc("je_admin");
   return !error && data === true;
 }
 
+async function ucitajDozvole() {
+  const { data, error } = await db.rpc("moje_dozvole");
+  dozvole = error ? [] : data;
+  document.querySelectorAll(".nav-btn").forEach((b) => {
+    b.hidden = !dozvole.includes(b.dataset.tab);
+  });
+  if (!dozvole.includes(aktivniTab)) aktivniTab = dozvole[0] ?? "pregled";
+}
+
+/* ---------- Korisnici u filterima ---------- */
 async function ucitajKorisnike() {
   const { data, error } = await db.rpc("lista_korisnika");
   if (error) {
@@ -90,7 +115,7 @@ async function ucitajPregled() {
   });
 }
 
-/* ---------- Računi (tabela) ---------- */
+/* ---------- Računi ---------- */
 async function ucitajRacune() {
   const f = filteriZa("periodRacuni", "korisnikRacuni");
   const { data, error } = await db.rpc("izvjestaj", f);
@@ -107,11 +132,12 @@ async function ucitajRacune() {
   }
   data.forEach((r) => {
     const tr = document.createElement("tr");
-    [new Date(r.created_at).toLocaleString("bs-BA"), r.email ?? "–", r.izraz ?? "–", r.rezultat].forEach((v) => {
-      const td = document.createElement("td");
-      td.textContent = v;
-      tr.appendChild(td);
-    });
+    tr.append(
+      td(new Date(r.created_at).toLocaleString("bs-BA")),
+      td(r.email ?? "–"),
+      td(r.izraz ?? "–"),
+      td(r.rezultat)
+    );
     tbody.appendChild(tr);
   });
 }
@@ -146,51 +172,68 @@ async function izvezi() {
   URL.revokeObjectURL(url);
 }
 
-/* ---------- Admini ---------- */
+/* ---------- Korisnici i dozvole ---------- */
 async function ucitajAdmine() {
-  const { data, error } = await db.rpc("lista_admina");
-  const lista = el("listaAdmina");
-  lista.innerHTML = "";
+  const { data, error } = await db.rpc("lista_svih_korisnika");
+  const tbody = el("tbodyAdmini");
+  tbody.innerHTML = "";
+  el("porukaAdmin").textContent = "";
   if (error) {
     el("porukaAdmin").textContent = error.message;
     return;
   }
-  data.forEach((a) => {
-    const li = document.createElement("li");
-    const tekst = document.createElement("span");
-    tekst.textContent = a.email;
+
+  data.forEach((k) => {
+    const tr = document.createElement("tr");
+    const jeAdmin = checkbox(k.admin);
+    const sekcije = {};
+    SEKCIJE.forEach((s) => {
+      sekcije[s] = checkbox(k.dozvole.includes(s), !k.admin);
+    });
+    jeAdmin.addEventListener("change", () => {
+      SEKCIJE.forEach((s) => (sekcije[s].disabled = !jeAdmin.checked));
+    });
+
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "opasnost";
-    btn.textContent = "Ukloni";
-    btn.addEventListener("click", () => ukloniAdmina(a.email));
-    li.append(tekst, btn);
-    lista.appendChild(li);
+    btn.textContent = "Sačuvaj";
+    btn.addEventListener("click", () => sacuvajDozvole(k.email, k.admin, jeAdmin.checked, SEKCIJE.filter((s) => sekcije[s].checked)));
+
+    const tdAdmin = document.createElement("td");
+    tdAdmin.appendChild(jeAdmin);
+    const tdBtn = document.createElement("td");
+    tdBtn.appendChild(btn);
+
+    tr.append(td(k.email), tdAdmin);
+    SEKCIJE.forEach((s) => {
+      const c = document.createElement("td");
+      c.appendChild(sekcije[s]);
+      tr.appendChild(c);
+    });
+    tr.appendChild(tdBtn);
+    tbody.appendChild(tr);
   });
 }
 
-async function dodajAdmina() {
+async function sacuvajDozvole(email, bioAdmin, jeSada, izabrane) {
   el("porukaAdmin").textContent = "";
-  const email = el("noviAdmin").value.trim();
-  if (!email) return;
-  const { error } = await db.rpc("dodaj_admina", { p_email: email });
-  if (error) {
-    el("porukaAdmin").textContent = error.message;
+  let res;
+  if (jeSada) {
+    res = await db.rpc("postavi_admina", { p_email: email, p_dozvole: izabrane });
+  } else if (bioAdmin) {
+    if (!confirm(`Ukloniti admin pristup za ${email}?`)) {
+      ucitajAdmine();
+      return;
+    }
+    res = await db.rpc("ukloni_admina", { p_email: email });
+  } else {
     return;
   }
-  el("noviAdmin").value = "";
-  el("porukaAdmin").textContent = "Admin dodan.";
-  ucitajAdmine();
-}
-
-async function ukloniAdmina(email) {
-  if (!confirm(`Ukloniti admin pristup za ${email}?`)) return;
-  el("porukaAdmin").textContent = "";
-  const { error } = await db.rpc("ukloni_admina", { p_email: email });
-  if (error) {
-    el("porukaAdmin").textContent = error.message;
+  if (res.error) {
+    el("porukaAdmin").textContent = res.error.message;
     return;
   }
+  el("porukaAdmin").textContent = `Sačuvano: ${email}`;
   ucitajAdmine();
 }
 
@@ -232,8 +275,13 @@ async function pokaziSadrzaj(session) {
     el("porukaPrijava").textContent = "Ovaj nalog nema admin pristup.";
   }
   if (admin) {
+    await ucitajDozvole();
     await ucitajKorisnike();
-    prikaziTab(aktivniTab);
+    if (dozvole.length === 0) {
+      el("porukaGreska").textContent = "Nemaš dozvolu ni za jedan odjeljak. Obrati se glavnom adminu.";
+    } else {
+      prikaziTab(aktivniTab);
+    }
     pokreniRealtime();
   }
 }
@@ -251,7 +299,6 @@ el("prijavi").addEventListener("click", async () => {
 
 el("odjava").addEventListener("click", () => db.auth.signOut());
 el("izvezi").addEventListener("click", izvezi);
-el("dodajAdmina").addEventListener("click", dodajAdmina);
 
 ["periodPregled", "korisnikPregled", "periodRacuni", "korisnikRacuni", "periodIzvj", "korisnikIzvj"].forEach((id) => {
   el(id).addEventListener("change", () => {
