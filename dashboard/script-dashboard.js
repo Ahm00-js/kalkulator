@@ -3,66 +3,71 @@ const SUPABASE_KEY = "sb_publishable_E0-L4WIo2J9XQK-6YLg1cQ_mxSBaanx";
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const el = (id) => document.getElementById(id);
+const NASLOVI = { pregled: "Pregled", racuni: "Računi", izvjestaji: "Izvještaji", admini: "Admini" };
 let grafDan = null;
 let grafOp = null;
 let realtimeAktivan = false;
+let aktivniTab = "pregled";
 
-/* ---------- Filteri ---------- */
-function filteri() {
-  const p = el("period").value;
-  const k = el("korisnikFilter").value;
-  return {
-    dani: p ? Number(p) : null,
-    korisnik: k || null,
-  };
+/* ---------- Pomoćne ---------- */
+function filteriZa(periodId, korisnikId) {
+  const p = el(periodId).value;
+  const k = el(korisnikId).value;
+  return { dani: p ? Number(p) : null, korisnik: k || null };
 }
 
-/* ---------- Provjera admina ---------- */
+function sinhroniziFiltere(izvor) {
+  // Sve filtere držimo usklađene, da promjena u jednom tabu važi svuda
+  ["periodPregled", "periodRacuni", "periodIzvj"].forEach((id) => {
+    if (id !== izvor) el(id).value = el(izvor).value;
+  });
+  ["korisnikPregled", "korisnikRacuni", "korisnikIzvj"].forEach((id) => {
+    if (id !== izvor) el(id).value = el(izvor).value;
+  });
+}
+
 async function provjeriAdmina() {
   const { data, error } = await db.rpc("je_admin");
   return !error && data === true;
 }
 
-/* ---------- Korisnici u filteru ---------- */
 async function ucitajKorisnike() {
   const { data, error } = await db.rpc("lista_korisnika");
   if (error) {
     el("porukaGreska").textContent = error.message;
     return;
   }
-  const select = el("korisnikFilter");
-  const trenutni = select.value;
-  select.innerHTML = '<option value="">Svi korisnici</option>';
-  data.forEach((k) => {
-    const opt = document.createElement("option");
-    opt.value = k.user_id;
-    opt.textContent = k.email;
-    select.appendChild(opt);
+  ["korisnikPregled", "korisnikRacuni", "korisnikIzvj"].forEach((id) => {
+    const select = el(id);
+    const trenutni = select.value;
+    select.innerHTML = '<option value="">Svi korisnici</option>';
+    data.forEach((k) => {
+      const opt = document.createElement("option");
+      opt.value = k.user_id;
+      opt.textContent = k.email;
+      select.appendChild(opt);
+    });
+    select.value = trenutni;
   });
-  select.value = trenutni;
 }
 
-/* ---------- Statistika ---------- */
-async function ucitajStatistiku() {
-  const f = filteri();
+/* ---------- Pregled ---------- */
+async function ucitajPregled() {
+  const f = filteriZa("periodPregled", "korisnikPregled");
   const [dan, op] = await Promise.all([
     db.rpc("statistika_po_danu", f),
     db.rpc("statistika_operacija", f),
   ]);
-
   if (dan.error || op.error) {
     el("porukaGreska").textContent = (dan.error || op.error).message;
     return;
   }
   el("porukaGreska").textContent = "";
 
-  const ukupno = dan.data.reduce((s, r) => s + Number(r.broj), 0);
-  el("ukupno").textContent = ukupno;
-
+  el("ukupno").textContent = dan.data.reduce((s, r) => s + Number(r.broj), 0);
   const danasKljuc = new Date().toISOString().slice(0, 10);
   const danasRed = dan.data.find((r) => String(r.dan) === danasKljuc);
   el("danas").textContent = danasRed ? danasRed.broj : 0;
-
   el("najcesca").textContent = op.data.length ? op.data[0].operacija : "–";
 
   if (grafDan) grafDan.destroy();
@@ -85,14 +90,41 @@ async function ucitajStatistiku() {
   });
 }
 
-/* ---------- CSV izvještaj ---------- */
+/* ---------- Računi (tabela) ---------- */
+async function ucitajRacune() {
+  const f = filteriZa("periodRacuni", "korisnikRacuni");
+  const { data, error } = await db.rpc("izvjestaj", f);
+  const tbody = el("tbodyRacuni");
+  tbody.innerHTML = "";
+  if (error) {
+    el("porukaGreska").textContent = error.message;
+    return;
+  }
+  el("porukaGreska").textContent = "";
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4">Nema računa u odabranom periodu.</td></tr>';
+    return;
+  }
+  data.forEach((r) => {
+    const tr = document.createElement("tr");
+    [new Date(r.created_at).toLocaleString("bs-BA"), r.email ?? "–", r.izraz ?? "–", r.rezultat].forEach((v) => {
+      const td = document.createElement("td");
+      td.textContent = v;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+/* ---------- CSV ---------- */
 function csvPolje(v) {
   const s = String(v ?? "");
   return /[";,\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 async function izvezi() {
-  const { data, error } = await db.rpc("izvjestaj", filteri());
+  const f = filteriZa("periodIzvj", "korisnikIzvj");
+  const { data, error } = await db.rpc("izvjestaj", f);
   if (error) {
     el("porukaGreska").textContent = error.message;
     return;
@@ -105,7 +137,6 @@ async function izvezi() {
     r.rezultat,
   ]);
   const sadrzaj = [zaglavlje, ...redovi].map((red) => red.map(csvPolje).join(";")).join("\n");
-
   const blob = new Blob(["\uFEFF" + sadrzaj], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -163,14 +194,30 @@ async function ukloniAdmina(email) {
   ucitajAdmine();
 }
 
+/* ---------- Navigacija ---------- */
+function prikaziTab(tab) {
+  aktivniTab = tab;
+  document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("aktivan", b.dataset.tab === tab));
+  document.querySelectorAll(".tab").forEach((t) => (t.hidden = t.id !== `tab-${tab}`));
+  el("naslov").textContent = NASLOVI[tab];
+  if (tab === "pregled") ucitajPregled();
+  if (tab === "racuni") ucitajRacune();
+  if (tab === "admini") ucitajAdmine();
+}
+
+document.querySelectorAll(".nav-btn").forEach((b) => {
+  b.addEventListener("click", () => prikaziTab(b.dataset.tab));
+});
+
 /* ---------- Realtime ---------- */
 function pokreniRealtime() {
   if (realtimeAktivan) return;
   realtimeAktivan = true;
   db.channel("istorija-promjene")
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "istorija" }, () => {
-      ucitajStatistiku();
       el("zivo").textContent = "● uživo";
+      if (aktivniTab === "pregled") ucitajPregled();
+      if (aktivniTab === "racuni") ucitajRacune();
     })
     .subscribe();
 }
@@ -186,8 +233,7 @@ async function pokaziSadrzaj(session) {
   }
   if (admin) {
     await ucitajKorisnike();
-    await ucitajStatistiku();
-    await ucitajAdmine();
+    prikaziTab(aktivniTab);
     pokreniRealtime();
   }
 }
@@ -204,7 +250,13 @@ el("prijavi").addEventListener("click", async () => {
 });
 
 el("odjava").addEventListener("click", () => db.auth.signOut());
-el("period").addEventListener("change", ucitajStatistiku);
-el("korisnikFilter").addEventListener("change", ucitajStatistiku);
 el("izvezi").addEventListener("click", izvezi);
 el("dodajAdmina").addEventListener("click", dodajAdmina);
+
+["periodPregled", "korisnikPregled", "periodRacuni", "korisnikRacuni", "periodIzvj", "korisnikIzvj"].forEach((id) => {
+  el(id).addEventListener("change", () => {
+    sinhroniziFiltere(id);
+    if (aktivniTab === "pregled") ucitajPregled();
+    if (aktivniTab === "racuni") ucitajRacune();
+  });
+});
