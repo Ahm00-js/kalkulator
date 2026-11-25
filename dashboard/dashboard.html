@@ -21,7 +21,6 @@
       --linija: rgba(42, 82, 152, 0.12);
       --polje: #f3f6fc;
       --radius: 22px;
-      --sidebar: #0b1f4a;
     }
 
     html, body { height: 100%; }
@@ -138,6 +137,7 @@
     }
 
     .filteri { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
+    .filteri label { font-size: 0.85rem; color: var(--tekst-blijed); display: flex; align-items: center; gap: 6px; }
 
     .grid2 { display: grid; gap: 20px; grid-template-columns: 1fr; }
     @media (min-width: 1000px) { .grid2 { grid-template-columns: 1fr 1fr; } }
@@ -184,9 +184,7 @@
     .zivo { font-size: 0.85rem; color: #9fd8b5; margin-bottom: 10px; }
     .tabela-wrap { overflow-x: auto; }
 
-    .prijava-kutija {
-      max-width: 420px; margin: 70px auto; padding: 32px;
-    }
+    .prijava-kutija { max-width: 420px; margin: 70px auto; padding: 32px; }
     .prijava-kutija h3 { font-size: 1rem; text-align: center; color: var(--tamna); }
     .prijava-kutija input { width: 100%; height: 52px; margin-bottom: 12px; }
     .prijava-kutija button { width: 100%; height: 52px; font-size: 1rem; }
@@ -235,11 +233,8 @@
 
       <div class="tab" id="tab-pregled">
         <div class="filteri">
-          <select id="periodPregled" aria-label="Period">
-            <option value="7">Zadnjih 7 dana</option>
-            <option value="30">Zadnjih 30 dana</option>
-            <option value="">Sve</option>
-          </select>
+          <label>Od <input type="date" id="odPregled"></label>
+          <label>Do <input type="date" id="doPregled"></label>
           <select id="korisnikPregled" aria-label="Korisnik"><option value="">Svi korisnici</option></select>
         </div>
         <div class="kartica">
@@ -253,15 +248,19 @@
           <div class="kartica"><h3>Računa po danu</h3><canvas id="grafDan"></canvas></div>
           <div class="kartica"><h3>Operacije</h3><canvas id="grafOp"></canvas></div>
         </div>
+        <div class="kartica tabela-wrap">
+          <h3>Zadnja aktivnost po korisniku</h3>
+          <table>
+            <thead><tr><th>Korisnik</th><th>Zadnji račun</th><th>Ukupno računa</th></tr></thead>
+            <tbody id="tbodyAktivnost"></tbody>
+          </table>
+        </div>
       </div>
 
       <div class="tab" id="tab-racuni" hidden>
         <div class="filteri">
-          <select id="periodRacuni" aria-label="Period">
-            <option value="7">Zadnjih 7 dana</option>
-            <option value="30">Zadnjih 30 dana</option>
-            <option value="">Sve</option>
-          </select>
+          <label>Od <input type="date" id="odRacuni"></label>
+          <label>Do <input type="date" id="doRacuni"></label>
           <select id="korisnikRacuni" aria-label="Korisnik"><option value="">Svi korisnici</option></select>
         </div>
         <div class="kartica tabela-wrap">
@@ -276,11 +275,8 @@
         <div class="kartica">
           <h3>Izvoz CSV</h3>
           <div class="filteri">
-            <select id="periodIzvj" aria-label="Period">
-              <option value="7">Zadnjih 7 dana</option>
-              <option value="30">Zadnjih 30 dana</option>
-              <option value="">Sve</option>
-            </select>
+            <label>Od <input type="date" id="odIzvj"></label>
+            <label>Do <input type="date" id="doIzvj"></label>
             <select id="korisnikIzvj" aria-label="Korisnik"><option value="">Svi korisnici</option></select>
             <button id="izvezi" type="button">Preuzmi CSV</button>
           </div>

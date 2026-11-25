@@ -24,19 +24,41 @@ async function obavijestiSlack(akcija, meta) {
 }
 
 /* ---------- Pomoćne ---------- */
-function filteriZa(periodId, korisnikId) {
-  const p = el(periodId).value;
+// Vraća { p_od, p_do, korisnik } iz date polja i korisničkog filtera
+function filteriZa(odId, doId, korisnikId) {
+  const od = el(odId).value;
+  const do_ = el(doId).value;
   const k = el(korisnikId).value;
-  return { dani: p ? Number(p) : null, korisnik: k || null };
+  return { p_od: od || null, p_do: do_ || null, korisnik: k || null };
 }
 
+// Sve filtere držimo usklađene između tabova
 function sinhroniziFiltere(izvor) {
-  ["periodPregled", "periodRacuni", "periodIzvj"].forEach((id) => {
-    if (id !== izvor) el(id).value = el(izvor).value;
+  const grupe = [
+    ["odPregled", "doPregled", "korisnikPregled"],
+    ["odRacuni", "doRacuni", "korisnikRacuni"],
+    ["odIzvj", "doIzvj", "korisnikIzvj"],
+  ];
+  const map = { 0: "od", 1: "do", 2: "k" };
+  const grupaIzvora = grupe.find((g) => g.includes(izvor));
+  const idx = grupaIzvora.indexOf(izvor);
+  const vrijednost = el(izvor).value;
+  grupe.forEach((g) => {
+    if (g === grupaIzvora) return;
+    el(g[idx]).value = vrijednost;
   });
-  ["korisnikPregled", "korisnikRacuni", "korisnikIzvj"].forEach((id) => {
-    if (id !== izvor) el(id).value = el(izvor).value;
+  grupe.forEach((g) => {
+    g.forEach((id) => {
+      if (id !== izvor && g[idx] !== undefined) {}
+    });
   });
+  // Iz svih grupa uskladi istu vrijednost za isti tip polja
+  grupe.forEach((g) => {
+    g.forEach((id, j) => {
+      if (id !== izvor && j === idx) el(id).value = vrijednost;
+    });
+  });
+  void map;
 }
 
 function td(tekst) {
@@ -90,7 +112,7 @@ async function ucitajKorisnike() {
 
 /* ---------- Pregled ---------- */
 async function ucitajPregled() {
-  const f = filteriZa("periodPregled", "korisnikPregled");
+  const f = filteriZa("odPregled", "doPregled", "korisnikPregled");
   const [dan, op] = await Promise.all([
     db.rpc("statistika_po_danu", f),
     db.rpc("statistika_operacija", f),
@@ -125,11 +147,37 @@ async function ucitajPregled() {
       datasets: [{ data: op.data.map((r) => r.broj), backgroundColor: ["#2a5298", "#5fa8ff", "#0b1f4a", "#c0392b", "#8fa0c4"] }],
     },
   });
+
+  ucitajAktivnost();
+}
+
+/* ---------- Zadnja aktivnost po korisniku ---------- */
+async function ucitajAktivnost() {
+  const { data, error } = await db.rpc("zadnja_aktivnost");
+  const tbody = el("tbodyAktivnost");
+  tbody.innerHTML = "";
+  if (error) {
+    el("porukaGreska").textContent = error.message;
+    return;
+  }
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3">Još nema aktivnosti.</td></tr>';
+    return;
+  }
+  data.forEach((r) => {
+    const tr = document.createElement("tr");
+    tr.append(
+      td(r.email ?? "–"),
+      td(new Date(r.zadnji_racun).toLocaleString("bs-BA")),
+      td(r.broj_racuna)
+    );
+    tbody.appendChild(tr);
+  });
 }
 
 /* ---------- Računi ---------- */
 async function ucitajRacune() {
-  const f = filteriZa("periodRacuni", "korisnikRacuni");
+  const f = filteriZa("odRacuni", "doRacuni", "korisnikRacuni");
   const { data, error } = await db.rpc("izvjestaj", f);
   const tbody = el("tbodyRacuni");
   tbody.innerHTML = "";
@@ -161,7 +209,7 @@ function csvPolje(v) {
 }
 
 async function izvezi() {
-  const f = filteriZa("periodIzvj", "korisnikIzvj");
+  const f = filteriZa("odIzvj", "doIzvj", "korisnikIzvj");
   const { data, error } = await db.rpc("izvjestaj", f);
   if (error) {
     el("porukaGreska").textContent = error.message;
@@ -378,7 +426,8 @@ el("prijavi").addEventListener("click", async () => {
 el("odjava").addEventListener("click", () => db.auth.signOut());
 el("izvezi").addEventListener("click", izvezi);
 
-["periodPregled", "korisnikPregled", "periodRacuni", "korisnikRacuni", "periodIzvj", "korisnikIzvj"].forEach((id) => {
+// Promjena datuma ili korisnika u jednom tabu važi u svim tabovima
+["odPregled", "doPregled", "korisnikPregled", "odRacuni", "doRacuni", "korisnikRacuni", "odIzvj", "doIzvj", "korisnikIzvj"].forEach((id) => {
   el(id).addEventListener("change", () => {
     sinhroniziFiltere(id);
     if (aktivniTab === "pregled") ucitajPregled();
