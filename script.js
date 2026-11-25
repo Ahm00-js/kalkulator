@@ -38,12 +38,11 @@ el("temaBtn").addEventListener("click", () =>
 );
 
 /* ---------- Validacija izraza ---------- */
-// Vraća null ako je izraz ispravan, inače poruku greške
 function validiraj(s) {
   if (!s) return "Unesi izraz";
   if (s.length > MAX_DUZINA_IZRAZA) return "Izraz je predugačak";
   if (/[+\-*\/]$/.test(s)) return "Izraz ne smije završiti operacijom";
-  if (/[0-9]\.[0-9]*\./.test(s) || /\.[0-9]*\./.test(s)) return "Broj ima više decimalnih tačaka";
+  if (/\.[0-9]*\./.test(s)) return "Broj ima više decimalnih tačaka";
   const brojevi = s.match(/\d+(\.\d+)?/g) ?? [];
   if (brojevi.some((b) => b.replace(".", "").length > MAX_CIFARA_BROJA)) {
     return "Broj je predug";
@@ -338,6 +337,44 @@ el("prijavi").addEventListener("click", prijava);
 el("registruj").addEventListener("click", registracija);
 odjavaBtn.addEventListener("click", () => db.auth.signOut());
 
+/* ---------- Modal s prečicama ---------- */
+const modal = el("modal");
+const modalKutija = el("modalKutija");
+const precicaBtn = el("precicaBtn");
+let zadnjiFokus = null;
+
+function otvoriPrecice() {
+  zadnjiFokus = document.activeElement;
+  modal.hidden = false;
+  el("modalZatvori").focus();
+}
+
+function zatvoriPrecice() {
+  modal.hidden = true;
+  if (zadnjiFokus) zadnjiFokus.focus();
+}
+
+precicaBtn.addEventListener("click", otvoriPrecice);
+el("modalZatvori").addEventListener("click", zatvoriPrecice);
+modal.addEventListener("click", (e) => {
+  if (!modalKutija.contains(e.target)) zatvoriPrecice();
+});
+
+// Fokus ostaje unutar modala dok je otvoren
+modal.addEventListener("keydown", (e) => {
+  if (e.key !== "Tab") return;
+  const fokusabilni = modal.querySelectorAll("button, [href], input, [tabindex]:not([tabindex='-1'])");
+  const prvi = fokusabilni[0];
+  const zadnji = fokusabilni[fokusabilni.length - 1];
+  if (e.shiftKey && document.activeElement === prvi) {
+    e.preventDefault();
+    zadnji.focus();
+  } else if (!e.shiftKey && document.activeElement === zadnji) {
+    e.preventDefault();
+    prvi.focus();
+  }
+});
+
 /* ---------- Dugmad i tastatura ---------- */
 document.querySelectorAll(".tipka").forEach((t) => {
   t.addEventListener("click", () => dodaj(t.dataset.k));
@@ -345,7 +382,12 @@ document.querySelectorAll(".tipka").forEach((t) => {
 el("izracunaj").addEventListener("click", izracunaj);
 
 document.addEventListener("keydown", (e) => {
-  if (app.hidden) return;
+  if (e.key === "Escape" && !modal.hidden) {
+    e.preventDefault();
+    zatvoriPrecice();
+    return;
+  }
+  if (app.hidden || !modal.hidden) return;
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
   const k = e.key;
