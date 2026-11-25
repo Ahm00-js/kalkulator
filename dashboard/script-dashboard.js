@@ -61,7 +61,7 @@ async function provjeriAdmina() {
 async function ucitajDozvole() {
   const { data, error } = await db.rpc("moje_dozvole");
   dozvole = error ? [] : data;
-  document.querySelectorAll(".nav-btn").forEach((b) => {
+  document.querySelectorAll(".nav-btn[data-tab]").forEach((b) => {
     b.hidden = !dozvole.includes(b.dataset.tab);
   });
   if (!dozvole.includes(aktivniTab)) aktivniTab = dozvole[0] ?? "pregled";
@@ -317,7 +317,7 @@ async function ucitajAudit() {
 /* ---------- Navigacija ---------- */
 function prikaziTab(tab) {
   aktivniTab = tab;
-  document.querySelectorAll(".nav-btn").forEach((b) => b.classList.toggle("aktivan", b.dataset.tab === tab));
+  document.querySelectorAll(".nav-btn[data-tab]").forEach((b) => b.classList.toggle("aktivan", b.dataset.tab === tab));
   document.querySelectorAll(".tab").forEach((t) => (t.hidden = t.id !== `tab-${tab}`));
   el("naslov").textContent = NASLOVI[tab];
   if (tab === "pregled") ucitajPregled();
@@ -325,7 +325,7 @@ function prikaziTab(tab) {
   if (tab === "admini") ucitajAdmine();
 }
 
-document.querySelectorAll(".nav-btn").forEach((b) => {
+document.querySelectorAll(".nav-btn[data-tab]").forEach((b) => {
   b.addEventListener("click", () => prikaziTab(b.dataset.tab));
 });
 
