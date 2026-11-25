@@ -37,6 +37,17 @@ el("temaBtn").addEventListener("click", () =>
   primijeniTemu(!document.body.classList.contains("tamna"))
 );
 
+/* ---------- Slack obavještenje o grešci upisa ---------- */
+// Ne čekamo odgovor i ne blokiramo korisnika ako Slack ne radi
+function prijaviGresku(poruka) {
+  db.functions
+    .invoke("notify-slack", { body: { akcija: "greska upisa", meta: poruka } })
+    .then(({ error, data }) => {
+      if (error || data?.error) console.error("Slack:", error?.message ?? data?.error);
+    })
+    .catch((e) => console.error("Slack:", e));
+}
+
 /* ---------- Validacija izraza ---------- */
 function validiraj(s) {
   if (!s) return "Unesi izraz";
@@ -210,6 +221,8 @@ async function izracunaj() {
 
   if (error) {
     console.error(error);
+    prikaziGresku("Račun nije sačuvan");
+    prijaviGresku(`Izraz: ${izraz}, greška: ${error.message}`);
     return;
   }
   await ucitajIstoriju();
@@ -360,7 +373,6 @@ modal.addEventListener("click", (e) => {
   if (!modalKutija.contains(e.target)) zatvoriPrecice();
 });
 
-// Fokus ostaje unutar modala dok je otvoren
 modal.addEventListener("keydown", (e) => {
   if (e.key !== "Tab") return;
   const fokusabilni = modal.querySelectorAll("button, [href], input, [tabindex]:not([tabindex='-1'])");

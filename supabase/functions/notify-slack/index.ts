@@ -6,14 +6,19 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const DOZVOLJENE_AKCIJE = [
+// Akcije koje može poslati samo admin
+const ADMIN_AKCIJE = [
   "admin postavljen",
   "admin uklonjen",
   "deaktiviran",
   "aktiviran",
 ];
 
+// Akcije koje može poslati bilo koji prijavljeni korisnik
+const KORISNIK_AKCIJE = ["greska upisa"];
+
 const SLACK_CHANNEL = "C0CLTU8T5RS";
+const MAX_META = 300;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -28,7 +33,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Klijent koji koristi JWT prijavljenog korisnika, da provjerimo da je admin
     const authHeader = req.headers.get("Authorization") ?? "";
     const db = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -36,21 +40,29 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } },
     );
 
-    const { data: jeAdmin, error: adminErr } = await db.rpc("je_admin");
-    if (adminErr || jeAdmin !== true) {
-      return json({ error: "Nema pristupa" }, 403);
+    const { data: userData, error: userErr } = await db.auth.getUser();
+    if (userErr || !userData?.user) {
+      return json({ error: "Nisi prijavljen" }, 401);
     }
-
-    const { data: userData } = await db.auth.getUser();
-    const email = userData?.user?.email ?? "nepoznato";
+    const email = userData.user.email ?? "nepoznato";
 
     const { akcija, meta } = await req.json();
-    if (!DOZVOLJENE_AKCIJE.includes(akcija)) {
+
+    if (KORISNIK_AKCIJE.includes(akcija)) {
+      // Svaki prijavljeni korisnik smije prijaviti grešku upisa
+    } else if (ADMIN_AKCIJE.includes(akcija)) {
+      const { data: jeAdmin, error: adminErr } = await db.rpc("je_admin");
+      if (adminErr || jeAdmin !== true) {
+        return json({ error: "Nema pristupa" }, 403);
+      }
+    } else {
       return json({ error: "Nepoznata akcija" }, 400);
     }
 
+    const tekstMeta = String(meta ?? "").slice(0, MAX_META);
     const vrijeme = new Date().toLocaleString("bs-BA", { timeZone: "Europe/Sarajevo" });
-    const tekst = `:bell: *Kalkulator – ${akcija}*\n${meta ?? ""}\nPoduzeo: ${email}\nVrijeme: ${vrijeme}`;
+    const tekst =
+      `:bell: *Kalkulator – ${akcija}*\n${tekstMeta}\nKorisnik: ${email}\nVrijeme: ${vrijeme}`;
 
     const slackRes = await fetch("https://slack.com/api/chat.postMessage", {
       method: "POST",
