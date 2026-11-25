@@ -10,6 +10,18 @@ let grafOp = null;
 let realtimeAktivan = false;
 let aktivniTab = "pregled";
 let dozvole = [];
+let korisnik = null;
+
+/* ---------- Slack obavještenje ---------- */
+async function obavijestiSlack(akcija, meta) {
+  const { data, error } = await db.functions.invoke("notify-slack", {
+    body: { akcija, meta },
+  });
+  if (error || data?.error) {
+    console.error("Slack:", error?.message ?? data?.error);
+    el("porukaAdmin").textContent = "Akcija sačuvana, ali Slack obavještenje nije poslato.";
+  }
+}
 
 /* ---------- Pomoćne ---------- */
 function filteriZa(periodId, korisnikId) {
@@ -234,19 +246,25 @@ async function ucitajAdmine() {
   ucitajAudit();
 }
 
-let korisnik = null;
-
 async function sacuvajDozvole(email, bioAdmin, jeSada, izabrane) {
   el("porukaAdmin").textContent = "";
   let res;
   if (jeSada) {
     res = await db.rpc("postavi_admina", { p_email: email, p_dozvole: izabrane });
+    if (!res.error) {
+      el("porukaAdmin").textContent = `Sačuvano: ${email}`;
+      await obavijestiSlack("admin postavljen", `${email} dozvole: ${izabrane.join(", ")}`);
+    }
   } else if (bioAdmin) {
     if (!confirm(`Ukloniti admin pristup za ${email}?`)) {
       ucitajAdmine();
       return;
     }
     res = await db.rpc("ukloni_admina", { p_email: email });
+    if (!res.error) {
+      el("porukaAdmin").textContent = `Uklonjen: ${email}`;
+      await obavijestiSlack("admin uklonjen", email);
+    }
   } else {
     return;
   }
@@ -254,7 +272,6 @@ async function sacuvajDozvole(email, bioAdmin, jeSada, izabrane) {
     el("porukaAdmin").textContent = res.error.message;
     return;
   }
-  el("porukaAdmin").textContent = `Sačuvano: ${email}`;
   ucitajAdmine();
 }
 
@@ -268,6 +285,7 @@ async function promijeniAktivnost(email, aktivan) {
     return;
   }
   el("porukaAdmin").textContent = `${aktivan ? "Aktiviran" : "Deaktiviran"}: ${email}`;
+  await obavijestiSlack(aktivan ? "aktiviran" : "deaktiviran", email);
   ucitajAdmine();
 }
 
