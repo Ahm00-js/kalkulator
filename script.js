@@ -15,9 +15,17 @@ const emailPolje = el("email");
 const lozinkaPolje = el("lozinka");
 const authPoruka = el("authPoruka");
 
+const MAX_DUZINA_IZRAZA = 60;
+const MAX_CIFARA_BROJA = 15;
+
 let izraz = "";
 let zadnjiRezultat = null;
 let jeRezultat = false;
+
+/* ---------- Poruke ---------- */
+function prikaziGresku(tekst) {
+  rezultat.textContent = tekst;
+}
 
 /* ---------- Tema ---------- */
 function primijeniTemu(tamna) {
@@ -28,6 +36,20 @@ primijeniTemu(localStorage.getItem("tema") === "tamna");
 el("temaBtn").addEventListener("click", () =>
   primijeniTemu(!document.body.classList.contains("tamna"))
 );
+
+/* ---------- Validacija izraza ---------- */
+// Vraća null ako je izraz ispravan, inače poruku greške
+function validiraj(s) {
+  if (!s) return "Unesi izraz";
+  if (s.length > MAX_DUZINA_IZRAZA) return "Izraz je predugačak";
+  if (/[+\-*\/]$/.test(s)) return "Izraz ne smije završiti operacijom";
+  if (/[0-9]\.[0-9]*\./.test(s) || /\.[0-9]*\./.test(s)) return "Broj ima više decimalnih tačaka";
+  const brojevi = s.match(/\d+(\.\d+)?/g) ?? [];
+  if (brojevi.some((b) => b.replace(".", "").length > MAX_CIFARA_BROJA)) {
+    return "Broj je predug";
+  }
+  return null;
+}
 
 /* ---------- Računanje (redoslijed operacija) ---------- */
 function evaluate(s) {
@@ -78,10 +100,25 @@ function dodaj(znak) {
     jeRezultat = false;
 
     if (/[0-9]/.test(znak)) {
+      const m = izraz.match(/\d*$/)[0];
+      if (m.length >= MAX_CIFARA_BROJA) {
+        prikaziGresku("Broj je predug");
+        izrazPolje.value = izraz;
+        return;
+      }
+      if (izraz.length >= MAX_DUZINA_IZRAZA) {
+        prikaziGresku("Izraz je predugačak");
+        izrazPolje.value = izraz;
+        return;
+      }
       izraz += znak;
     } else if (znak === ".") {
       const m = izraz.match(/[\d.]*$/)[0];
-      if (!m.includes(".")) izraz += m === "" ? "0." : ".";
+      if (m.includes(".")) {
+        prikaziGresku("Broj već ima decimalnu tačku");
+      } else {
+        izraz += m === "" ? "0." : ".";
+      }
     } else if (OP[znak]) {
       const op = OP[znak];
       if (izraz === "") {
@@ -89,6 +126,11 @@ function dodaj(znak) {
       } else if (/[+\-*\/]$/.test(izraz)) {
         izraz = izraz.slice(0, -1) + op;
       } else {
+        if (izraz.length >= MAX_DUZINA_IZRAZA) {
+          prikaziGresku("Izraz je predugačak");
+          izrazPolje.value = izraz;
+          return;
+        }
         izraz += op;
       }
     }
@@ -98,12 +140,15 @@ function dodaj(znak) {
 
 function primijeniFunkciju(tip) {
   const m = izraz.match(/(\d+\.?\d*)$/);
-  if (!m) return;
+  if (!m) {
+    prikaziGresku("Unesi broj");
+    return;
+  }
   const x = parseFloat(m[1]);
   let r;
   if (tip === "√") {
     if (x < 0) {
-      rezultat.textContent = "Greška: korijen negativnog broja";
+      prikaziGresku("Greška: korijen negativnog broja");
       return;
     }
     r = Math.sqrt(x);
@@ -118,15 +163,15 @@ function primijeniFunkciju(tip) {
 function umetniAns() {
   if (jeRezultat) izraz = "";
   if (zadnjiRezultat === null) {
-    rezultat.textContent = "Nema prethodnog rezultata";
+    prikaziGresku("Nema prethodnog rezultata");
     return;
   }
   if (zadnjiRezultat < 0) {
-    rezultat.textContent = "ANS je negativan, unesi ručno";
+    prikaziGresku("ANS je negativan, unesi ručno");
     return;
   }
   if (/[\d.]$/.test(izraz)) {
-    rezultat.textContent = "Prvo unesi operaciju";
+    prikaziGresku("Prvo unesi operaciju");
     return;
   }
   izraz += String(zadnjiRezultat);
@@ -136,16 +181,21 @@ function umetniAns() {
 
 /* ---------- Izračun i čuvanje ---------- */
 async function izracunaj() {
-  if (!izraz) return;
+  const greska = validiraj(izraz);
+  if (greska) {
+    prikaziGresku(greska);
+    return;
+  }
+
   let r;
   try {
     r = evaluate(izraz);
   } catch (e) {
-    rezultat.textContent = "Greška: dijeljenje nulom";
+    prikaziGresku("Greška: dijeljenje nulom");
     return;
   }
   if (r === null || !isFinite(r)) {
-    rezultat.textContent = "Nepotpun izraz";
+    prikaziGresku("Nepotpun izraz");
     return;
   }
 
@@ -176,7 +226,6 @@ async function obrisi(id) {
   await ucitajIstoriju();
 }
 
-/* Klik na račun u istoriji vraća izraz u ekran (event delegation) */
 listaIstorije.addEventListener("click", (e) => {
   const li = e.target.closest("li[data-izraz]");
   if (!li) return;
