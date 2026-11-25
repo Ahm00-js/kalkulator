@@ -176,6 +176,17 @@ async function obrisi(id) {
   await ucitajIstoriju();
 }
 
+/* Klik na račun u istoriji vraća izraz u ekran (event delegation) */
+listaIstorije.addEventListener("click", (e) => {
+  const li = e.target.closest("li[data-izraz]");
+  if (!li) return;
+  if (e.target.closest(".brisi")) return;
+  izraz = li.dataset.izraz;
+  rezultat.textContent = "";
+  jeRezultat = false;
+  izrazPolje.value = izraz;
+});
+
 async function ucitajIstoriju() {
   const { data, error } = await db
     .from("istorija")
@@ -199,10 +210,13 @@ async function ucitajIstoriju() {
 
   data.forEach((red) => {
     const li = document.createElement("li");
+    const izrazTekst = red.izraz ?? `${red.broj_a} ${red.operacija} ${red.broj_b}`;
+    li.dataset.izraz = izrazTekst;
+    li.title = "Klikni da vratiš izraz na ekran";
 
     const izrazSpan = document.createElement("span");
     izrazSpan.className = "izraz";
-    izrazSpan.textContent = red.izraz ?? `${red.broj_a} ${red.operacija} ${red.broj_b}`;
+    izrazSpan.textContent = izrazTekst;
 
     const desno = document.createElement("div");
     desno.className = "desno";
