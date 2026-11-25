@@ -1,444 +1,346 @@
-const SUPABASE_URL = "https://wvzejipxusngsuopzyic.supabase.co";
-const SUPABASE_KEY = "sb_publishable_E0-L4WIo2J9XQK-6YLg1cQ_mxSBaanx";
-const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+<!DOCTYPE html>
+<html lang="bs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1f4a">
+  <title>Dashboard</title>
+  <link rel="icon" href="data:,">
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    [hidden] { display: none !important; }
 
-const el = (id) => document.getElementById(id);
-const NASLOVI = { pregled: "Pregled", racuni: "Računi", izvjestaji: "Izvještaji", admini: "Admini" };
-const SEKCIJE = ["pregled", "racuni", "izvjestaji", "admini"];
-let grafDan = null;
-let grafOp = null;
-let realtimeAktivan = false;
-let aktivniTab = "pregled";
-let dozvole = [];
-let korisnik = null;
-
-/* ---------- Tema (dijeli localStorage ključ s kalkulatorom) ---------- */
-function primijeniTemu(tamna) {
-  document.body.classList.toggle("tamna", tamna);
-  localStorage.setItem("tema", tamna ? "tamna" : "svijetla");
-  // Grafikoni čitaju boje iz CSS-a pri crtanju, pa ih ponovo iscrtavamo
-  if (grafDan || grafOp) ucitajPregled();
-}
-primijeniTemu(localStorage.getItem("tema") === "tamna");
-el("temaBtn").addEventListener("click", () =>
-  primijeniTemu(!document.body.classList.contains("tamna"))
-);
-
-/* ---------- Slack obavještenje ---------- */
-async function obavijestiSlack(akcija, meta) {
-  const { data, error } = await db.functions.invoke("notify-slack", {
-    body: { akcija, meta },
-  });
-  if (error || data?.error) {
-    console.error("Slack:", error?.message ?? data?.error);
-    el("porukaAdmin").textContent = "Akcija sačuvana, ali Slack obavještenje nije poslato.";
-  }
-}
-
-/* ---------- Pomoćne ---------- */
-function filteriZa(odId, doId, korisnikId) {
-  const od = el(odId).value;
-  const do_ = el(doId).value;
-  const k = el(korisnikId).value;
-  return { p_od: od || null, p_do: do_ || null, korisnik: k || null };
-}
-
-// Promjena u jednom tabu važi u svim tabovima
-function sinhroniziFiltere(izvor) {
-  const grupe = [
-    ["odPregled", "doPregled", "korisnikPregled"],
-    ["odRacuni", "doRacuni", "korisnikRacuni"],
-    ["odIzvj", "doIzvj", "korisnikIzvj"],
-  ];
-  const grupaIzvora = grupe.find((g) => g.includes(izvor));
-  const idx = grupaIzvora.indexOf(izvor);
-  const vrijednost = el(izvor).value;
-  grupe.forEach((g) => {
-    if (g === grupaIzvora) return;
-    el(g[idx]).value = vrijednost;
-  });
-}
-
-function td(tekst) {
-  const c = document.createElement("td");
-  c.textContent = tekst;
-  return c;
-}
-
-function checkbox(checked, disabled = false) {
-  const cb = document.createElement("input");
-  cb.type = "checkbox";
-  cb.checked = checked;
-  cb.disabled = disabled;
-  return cb;
-}
-
-async function provjeriAdmina() {
-  const { data, error } = await db.rpc("je_admin");
-  return !error && data === true;
-}
-
-async function ucitajDozvole() {
-  const { data, error } = await db.rpc("moje_dozvole");
-  dozvole = error ? [] : data;
-  document.querySelectorAll(".nav-btn[data-tab]").forEach((b) => {
-    b.hidden = !dozvole.includes(b.dataset.tab);
-  });
-  if (!dozvole.includes(aktivniTab)) aktivniTab = dozvole[0] ?? "pregled";
-}
-
-/* ---------- Korisnici u filterima ---------- */
-async function ucitajKorisnike() {
-  const { data, error } = await db.rpc("lista_korisnika");
-  if (error) {
-    el("porukaGreska").textContent = error.message;
-    return;
-  }
-  ["korisnikPregled", "korisnikRacuni", "korisnikIzvj"].forEach((id) => {
-    const select = el(id);
-    const trenutni = select.value;
-    select.innerHTML = '<option value="">Svi korisnici</option>';
-    data.forEach((k) => {
-      const opt = document.createElement("option");
-      opt.value = k.user_id;
-      opt.textContent = k.email;
-      select.appendChild(opt);
-    });
-    select.value = trenutni;
-  });
-}
-
-/* ---------- Pregled ---------- */
-async function ucitajPregled() {
-  const f = filteriZa("odPregled", "doPregled", "korisnikPregled");
-  const [dan, op] = await Promise.all([
-    db.rpc("statistika_po_danu", f),
-    db.rpc("statistika_operacija", f),
-  ]);
-  if (dan.error || op.error) {
-    el("porukaGreska").textContent = (dan.error || op.error).message;
-    return;
-  }
-  el("porukaGreska").textContent = "";
-
-  el("ukupno").textContent = dan.data.reduce((s, r) => s + Number(r.broj), 0);
-  const danasKljuc = new Date().toISOString().slice(0, 10);
-  const danasRed = dan.data.find((r) => String(r.dan) === danasKljuc);
-  el("danas").textContent = danasRed ? danasRed.broj : 0;
-  el("najcesca").textContent = op.data.length ? op.data[0].operacija : "–";
-
-  const tamna = document.body.classList.contains("tamna");
-  const tekstBoja = tamna ? "#e8eefb" : "#1d2a44";
-  const mrezaBoja = tamna ? "rgba(143,160,196,0.15)" : "rgba(42,82,152,0.1)";
-  Chart.defaults.color = tekstBoja;
-
-  if (grafDan) grafDan.destroy();
-  grafDan = new Chart(el("grafDan"), {
-    type: "bar",
-    data: {
-      labels: dan.data.map((r) => r.dan),
-      datasets: [{ label: "Računa", data: dan.data.map((r) => r.broj), backgroundColor: "#2a5298" }],
-    },
-    options: {
-      plugins: { legend: { display: false } },
-      scales: {
-        y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: mrezaBoja } },
-        x: { grid: { color: mrezaBoja } },
-      },
-    },
-  });
-
-  if (grafOp) grafOp.destroy();
-  grafOp = new Chart(el("grafOp"), {
-    type: "doughnut",
-    data: {
-      labels: op.data.map((r) => r.operacija),
-      datasets: [{ data: op.data.map((r) => r.broj), backgroundColor: ["#2a5298", "#5fa8ff", "#0b1f4a", "#c0392b", "#8fa0c4"] }],
-    },
-  });
-
-  ucitajAktivnost();
-}
-
-/* ---------- Zadnja aktivnost po korisniku ---------- */
-async function ucitajAktivnost() {
-  const { data, error } = await db.rpc("zadnja_aktivnost");
-  const tbody = el("tbodyAktivnost");
-  tbody.innerHTML = "";
-  if (error) {
-    el("porukaGreska").textContent = error.message;
-    return;
-  }
-  if (data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="3">Još nema aktivnosti.</td></tr>';
-    return;
-  }
-  data.forEach((r) => {
-    const tr = document.createElement("tr");
-    tr.append(
-      td(r.email ?? "–"),
-      td(new Date(r.zadnji_racun).toLocaleString("bs-BA")),
-      td(r.broj_racuna)
-    );
-    tbody.appendChild(tr);
-  });
-}
-
-/* ---------- Računi ---------- */
-async function ucitajRacune() {
-  const f = filteriZa("odRacuni", "doRacuni", "korisnikRacuni");
-  const { data, error } = await db.rpc("izvjestaj", f);
-  const tbody = el("tbodyRacuni");
-  tbody.innerHTML = "";
-  if (error) {
-    el("porukaGreska").textContent = error.message;
-    return;
-  }
-  el("porukaGreska").textContent = "";
-  if (data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4">Nema računa u odabranom periodu.</td></tr>';
-    return;
-  }
-  data.forEach((r) => {
-    const tr = document.createElement("tr");
-    tr.append(
-      td(new Date(r.created_at).toLocaleString("bs-BA")),
-      td(r.email ?? "–"),
-      td(r.izraz ?? "–"),
-      td(r.rezultat)
-    );
-    tbody.appendChild(tr);
-  });
-}
-
-/* ---------- CSV ---------- */
-function csvPolje(v) {
-  const s = String(v ?? "");
-  return /[";,\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-async function izvezi() {
-  const f = filteriZa("odIzvj", "doIzvj", "korisnikIzvj");
-  const { data, error } = await db.rpc("izvjestaj", f);
-  if (error) {
-    el("porukaGreska").textContent = error.message;
-    return;
-  }
-  const zaglavlje = ["Datum", "Korisnik", "Izraz", "Rezultat"];
-  const redovi = data.map((r) => [
-    new Date(r.created_at).toLocaleString("bs-BA"),
-    r.email,
-    r.izraz,
-    r.rezultat,
-  ]);
-  const sadrzaj = [zaglavlje, ...redovi].map((red) => red.map(csvPolje).join(";")).join("\n");
-  const blob = new Blob(["\uFEFF" + sadrzaj], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `izvjestaj-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-/* ---------- Korisnici, dozvole i status ---------- */
-async function ucitajAdmine() {
-  const { data, error } = await db.rpc("lista_svih_korisnika");
-  const tbody = el("tbodyAdmini");
-  tbody.innerHTML = "";
-  el("porukaAdmin").textContent = "";
-  if (error) {
-    el("porukaAdmin").textContent = error.message;
-    return;
-  }
-
-  data.forEach((k) => {
-    const tr = document.createElement("tr");
-    const jeAdmin = checkbox(k.admin);
-    const sekcije = {};
-    SEKCIJE.forEach((s) => {
-      sekcije[s] = checkbox(k.dozvole.includes(s), !k.admin);
-    });
-    jeAdmin.addEventListener("change", () => {
-      SEKCIJE.forEach((s) => (sekcije[s].disabled = !jeAdmin.checked));
-    });
-
-    const sacuvaj = document.createElement("button");
-    sacuvaj.type = "button";
-    sacuvaj.textContent = "Sačuvaj";
-    sacuvaj.addEventListener("click", () =>
-      sacuvajDozvole(k.email, k.admin, jeAdmin.checked, SEKCIJE.filter((s) => sekcije[s].checked))
-    );
-
-    const status = document.createElement("td");
-    const badge = document.createElement("span");
-    badge.className = `badge ${k.aktivan ? "da" : "ne"}`;
-    badge.textContent = k.aktivan ? "Aktivan" : "Deaktiviran";
-    status.appendChild(badge);
-
-    const tdAdmin = document.createElement("td");
-    tdAdmin.appendChild(jeAdmin);
-    const tdBtn = document.createElement("td");
-    tdBtn.append(sacuvaj);
-
-    if (k.email !== korisnik) {
-      const akt = document.createElement("button");
-      akt.type = "button";
-      akt.className = k.aktivan ? "zuta" : "mala";
-      akt.textContent = k.aktivan ? "Deaktiviraj" : "Aktiviraj";
-      akt.addEventListener("click", () => promijeniAktivnost(k.email, !k.aktivan));
-      tdBtn.append(" ", akt);
+    :root {
+      --tamna: #0b1f4a;
+      --plava: #2a5298;
+      --svijetla: #5fa8ff;
+      --bijela: #ffffff;
+      --pozadina: linear-gradient(135deg, #eef3fc, #dfe9fa 60%, #cfe0fb);
+      --kartica: rgba(255, 255, 255, 0.94);
+      --tekst: #1d2a44;
+      --tekst-blijed: #6b7a99;
+      --linija: rgba(42, 82, 152, 0.12);
+      --polje: #f3f6fc;
+      --red-hover: #f7f9fe;
+      --tabela-linija: #e6ecf6;
+      --broj-bg: linear-gradient(135deg, #ffffff, #f1f5fd);
+      --radius: 22px;
     }
 
-    tr.append(td(k.email), tdAdmin);
-    SEKCIJE.forEach((s) => {
-      const c = document.createElement("td");
-      c.appendChild(sekcije[s]);
-      tr.appendChild(c);
-    });
-    tr.append(status, tdBtn);
-    tbody.appendChild(tr);
-  });
-
-  ucitajAudit();
-}
-
-async function sacuvajDozvole(email, bioAdmin, jeSada, izabrane) {
-  el("porukaAdmin").textContent = "";
-  let res;
-  if (jeSada) {
-    res = await db.rpc("postavi_admina", { p_email: email, p_dozvole: izabrane });
-    if (!res.error) {
-      el("porukaAdmin").textContent = `Sačuvano: ${email}`;
-      await obavijestiSlack("admin postavljen", `${email} dozvole: ${izabrane.join(", ")}`);
+    body.tamna {
+      --tamna: #e8eefb;
+      --plava: #7fb4ff;
+      --svijetla: #3d7bd9;
+      --pozadina: linear-gradient(135deg, #050b1a, #0f1d3a, #1d3566);
+      --kartica: rgba(18, 26, 46, 0.92);
+      --tekst: #e8eefb;
+      --tekst-blijed: #8fa0c4;
+      --linija: rgba(143, 160, 196, 0.16);
+      --polje: #1a2540;
+      --red-hover: #1f2c4a;
+      --tabela-linija: #26365a;
+      --broj-bg: linear-gradient(135deg, #1d2a47, #162238);
     }
-  } else if (bioAdmin) {
-    if (!confirm(`Ukloniti admin pristup za ${email}?`)) {
-      ucitajAdmine();
-      return;
+
+    html, body { height: 100%; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Roboto, system-ui, -apple-system, Arial, sans-serif;
+      color: var(--tekst);
+      background: var(--pozadina);
+      min-height: 100vh;
+      min-height: 100dvh;
     }
-    res = await db.rpc("ukloni_admina", { p_email: email });
-    if (!res.error) {
-      el("porukaAdmin").textContent = `Uklonjen: ${email}`;
-      await obavijestiSlack("admin uklonjen", email);
+
+    .layout { display: flex; min-height: 100vh; min-height: 100dvh; }
+
+    aside {
+      width: 240px;
+      flex-shrink: 0;
+      background: linear-gradient(180deg, #0b1f4a, #14316b);
+      color: #fff;
+      padding: 26px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 4px 0 30px rgba(11, 31, 74, 0.25);
     }
-  } else {
-    return;
-  }
-  if (res.error) {
-    el("porukaAdmin").textContent = res.error.message;
-    return;
-  }
-  ucitajAdmine();
-}
-
-async function promijeniAktivnost(email, aktivan) {
-  const poruka = aktivan ? `Aktivirati ${email}?` : `Deaktivirati ${email}? Neće se moći prijaviti.`;
-  if (!confirm(poruka)) return;
-  el("porukaAdmin").textContent = "";
-  const { error } = await db.rpc("postavi_aktivnost", { p_email: email, p_aktivan: aktivan });
-  if (error) {
-    el("porukaAdmin").textContent = error.message;
-    return;
-  }
-  el("porukaAdmin").textContent = `${aktivan ? "Aktiviran" : "Deaktiviran"}: ${email}`;
-  await obavijestiSlack(aktivan ? "aktiviran" : "deaktiviran", email);
-  ucitajAdmine();
-}
-
-/* ---------- Audit log ---------- */
-async function ucitajAudit() {
-  const { data, error } = await db.rpc("lista_audit");
-  const tbody = el("tbodyAudit");
-  tbody.innerHTML = "";
-  if (error) {
-    el("porukaAdmin").textContent = error.message;
-    return;
-  }
-  if (data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4">Nema zapisa.</td></tr>';
-    return;
-  }
-  data.forEach((r) => {
-    const tr = document.createElement("tr");
-    tr.append(
-      td(new Date(r.created_at).toLocaleString("bs-BA")),
-      td(r.admin_email ?? "–"),
-      td(r.akcija),
-      td(r.meta ?? "")
-    );
-    tbody.appendChild(tr);
-  });
-}
-
-/* ---------- Navigacija ---------- */
-function prikaziTab(tab) {
-  aktivniTab = tab;
-  document.querySelectorAll(".nav-btn[data-tab]").forEach((b) => b.classList.toggle("aktivan", b.dataset.tab === tab));
-  document.querySelectorAll(".tab").forEach((t) => (t.hidden = t.id !== `tab-${tab}`));
-  el("naslov").textContent = NASLOVI[tab];
-  if (tab === "pregled") ucitajPregled();
-  if (tab === "racuni") ucitajRacune();
-  if (tab === "admini") ucitajAdmine();
-}
-
-document.querySelectorAll(".nav-btn[data-tab]").forEach((b) => {
-  b.addEventListener("click", () => prikaziTab(b.dataset.tab));
-});
-
-/* ---------- Realtime ---------- */
-function pokreniRealtime() {
-  if (realtimeAktivan) return;
-  realtimeAktivan = true;
-  db.channel("istorija-promjene")
-    .on("postgres_changes", { event: "INSERT", schema: "public", table: "istorija" }, () => {
-      el("zivo").textContent = "● uživo";
-      if (aktivniTab === "pregled") ucitajPregled();
-      if (aktivniTab === "racuni") ucitajRacune();
-    })
-    .subscribe();
-}
-
-/* ---------- Sesija i prijava ---------- */
-async function pokaziSadrzaj(session) {
-  const admin = session ? await provjeriAdmina() : false;
-  el("odjava").hidden = !session;
-  el("prijava").hidden = !!admin;
-  el("sadrzaj").hidden = !admin;
-  korisnik = session ? session.user.email : null;
-  if (session && !admin) {
-    el("porukaPrijava").textContent = "Ovaj nalog nema admin pristup.";
-  }
-  if (admin) {
-    await ucitajDozvole();
-    await ucitajKorisnike();
-    if (dozvole.length === 0) {
-      el("porukaGreska").textContent = "Nemaš dozvolu ni za jedan odjeljak. Obrati se glavnom adminu.";
-    } else {
-      prikaziTab(aktivniTab);
+    body.tamna aside {
+      background: linear-gradient(180deg, #050b1a, #0f1d3a);
     }
-    pokreniRealtime();
-  }
-}
+    aside h1 {
+      font-size: 1.15rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin: 0 0 22px 10px;
+    }
 
-db.auth.onAuthStateChange((_event, session) => pokaziSadrzaj(session));
+    .nav-btn {
+      text-align: left;
+      background: transparent;
+      color: #c9d6f0;
+      border: none;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: block;
+      transition: background 0.2s, color 0.2s, transform 0.12s;
+    }
+    .nav-btn:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+    .nav-btn:active { transform: scale(0.98); }
+    .nav-btn.aktivan {
+      background: linear-gradient(135deg, #2a5298, #5fa8ff);
+      color: #fff;
+      box-shadow: 0 8px 20px rgba(42, 82, 152, 0.4);
+    }
 
-el("prijavi").addEventListener("click", async () => {
-  el("porukaPrijava").textContent = "";
-  const { error } = await db.auth.signInWithPassword({
-    email: el("email").value.trim(),
-    password: el("lozinka").value,
-  });
-  if (error) el("porukaPrijava").textContent = error.message;
-});
+    .sadrzaj { flex: 1; padding: 30px; min-width: 0; }
 
-el("odjava").addEventListener("click", () => db.auth.signOut());
-el("izvezi").addEventListener("click", izvezi);
+    h2.naslov {
+      margin: 0 0 22px;
+      color: var(--tamna);
+      font-size: 1.6rem;
+      font-weight: 700;
+    }
 
-["odPregled", "doPregled", "korisnikPregled", "odRacuni", "doRacuni", "korisnikRacuni", "odIzvj", "doIzvj", "korisnikIzvj"].forEach((id) => {
-  el(id).addEventListener("change", () => {
-    sinhroniziFiltere(id);
-    if (aktivniTab === "pregled") ucitajPregled();
-    if (aktivniTab === "racuni") ucitajRacune();
-  });
-});
+    button {
+      padding: 9px 16px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--plava), var(--svijetla));
+      color: #fff;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.92rem;
+      cursor: pointer;
+      box-shadow: 0 6px 16px rgba(42, 82, 152, 0.3);
+      transition: transform 0.12s, box-shadow 0.2s;
+    }
+    button:active { transform: scale(0.97); }
+    button.mala { background: var(--polje); color: var(--plava); box-shadow: none; }
+    button.opasnost { background: #fdecea; color: #c0392b; box-shadow: none; }
+    button.zuta { background: #fff4d6; color: #8a6100; box-shadow: none; }
+
+    select, input {
+      padding: 10px 14px;
+      border: 2px solid transparent;
+      border-radius: 12px;
+      background: var(--polje);
+      color: var(--tekst);
+      font-family: inherit;
+      font-size: 0.95rem;
+      outline: none;
+      color-scheme: light dark;
+    }
+    select:focus, input:focus { border-color: var(--plava); box-shadow: 0 0 0 4px rgba(42, 82, 152, 0.15); }
+
+    .kartica {
+      background: var(--kartica);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      border-radius: var(--radius);
+      padding: 22px;
+      box-shadow: 0 18px 44px rgba(11, 31, 74, 0.12);
+      margin-bottom: 20px;
+      min-width: 0;
+    }
+    body.tamna .kartica { border-color: rgba(143, 160, 196, 0.15); }
+    .kartica h3 {
+      margin: 0 0 14px;
+      font-size: 0.85rem;
+      color: var(--plava);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      font-weight: 700;
+    }
+
+    .filteri { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
+    .filteri label { font-size: 0.85rem; color: var(--tekst-blijed); display: flex; align-items: center; gap: 6px; }
+
+    .grid2 { display: grid; gap: 20px; grid-template-columns: 1fr; }
+    @media (min-width: 1000px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+
+    .brojevi { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+    .broj {
+      background: var(--broj-bg);
+      border-radius: 18px;
+      padding: 20px;
+      text-align: center;
+      box-shadow: inset 0 0 0 1px var(--linija);
+    }
+    .broj .vrijednost { font-size: 2rem; font-weight: 700; color: var(--tamna); }
+    .broj .oznaka { font-size: 0.85rem; color: var(--tekst-blijed); margin-top: 4px; }
+
+    canvas { max-height: 320px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+    th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--tabela-linija); }
+    th {
+      color: var(--plava);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 700;
+    }
+    tr:hover td { background: var(--red-hover); }
+    td input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--plava); padding: 0; }
+    td input[type="checkbox"]:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .badge { font-size: 0.78rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; }
+    .badge.da { background: #e3f6ea; color: #1e7b44; }
+    .badge.ne { background: #fdecea; color: #c0392b; }
+    body.tamna .badge.da { background: #1e3b2b; color: #9fe3b8; }
+    body.tamna .badge.ne { background: #3a2326; color: #ff8a80; }
+
+    .admini { list-style: none; padding: 0; margin: 0 0 16px; }
+    .admini li {
+      display: flex; justify-content: space-between; align-items: center;
+      background: var(--polje); border-radius: 14px; padding: 12px 16px; margin-bottom: 8px;
+    }
+    .dodaj { display: flex; gap: 10px; flex-wrap: wrap; }
+    .dodaj input { flex: 1; min-width: 220px; }
+
+    .poruka { color: #c0392b; min-height: 1.2rem; margin: 10px 0 0; font-size: 0.92rem; }
+    .zivo { font-size: 0.85rem; color: #9fd8b5; margin-bottom: 10px; }
+    .tabela-wrap { overflow-x: auto; }
+
+    .prijava-kutija { max-width: 420px; margin: 70px auto; padding: 32px; }
+    .prijava-kutija h3 { font-size: 1rem; text-align: center; color: var(--tamna); }
+    .prijava-kutija input { width: 100%; height: 52px; margin-bottom: 12px; }
+    .prijava-kutija button { width: 100%; height: 52px; font-size: 1rem; }
+
+    .tema-dugme { margin-top: 10px; width: 100%; background: rgba(255, 255, 255, 0.12); box-shadow: none; }
+
+    @media (max-width: 760px) {
+      .layout { flex-direction: column; }
+      aside { width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 14px; gap: 8px; }
+      aside h1 { margin: 0 8px 0 0; font-size: 1rem; }
+      .nav-btn { padding: 9px 12px; font-size: 0.85rem; }
+      .zivo { display: none; }
+      .tema-dugme { width: auto; margin-top: 0; }
+      .sadrzaj { padding: 18px; }
+      h2.naslov { font-size: 1.3rem; }
+      .kartica { padding: 16px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <section class="kartica prijava-kutija" id="prijava" hidden>
+    <h3>Prijava (samo admin)</h3>
+    <input type="email" id="email" placeholder="Email">
+    <input type="password" id="lozinka" placeholder="Lozinka">
+    <button id="prijavi" type="button">Prijavi se</button>
+    <p class="poruka" id="porukaPrijava"></p>
+  </section>
+
+  <div class="layout" id="sadrzaj" hidden>
+    <aside>
+      <h1>Kalkulator</h1>
+      <a class="nav-btn" href="../index.html">← Kalkulator</a>
+      <button class="nav-btn aktivan" data-tab="pregled">Pregled</button>
+      <button class="nav-btn" data-tab="racuni">Računi</button>
+      <button class="nav-btn" data-tab="izvjestaji">Izvještaji</button>
+      <button class="nav-btn" data-tab="admini">Admini</button>
+      <div style="margin-top:auto;">
+        <div class="zivo" id="zivo"></div>
+        <button class="mala tema-dugme" id="temaBtn" type="button">Tema</button>
+        <button class="mala tema-dugme" id="odjava" type="button">Odjava</button>
+      </div>
+    </aside>
+
+    <main class="sadrzaj">
+      <h2 class="naslov" id="naslov">Pregled</h2>
+
+      <div class="tab" id="tab-pregled">
+        <div class="filteri">
+          <label>Od <input type="date" id="odPregled"></label>
+          <label>Do <input type="date" id="doPregled"></label>
+          <select id="korisnikPregled" aria-label="Korisnik"><option value="">Svi korisnici</option></select>
+        </div>
+        <div class="kartica">
+          <div class="brojevi">
+            <div class="broj"><div class="vrijednost" id="ukupno">0</div><div class="oznaka">Računa u periodu</div></div>
+            <div class="broj"><div class="vrijednost" id="danas">0</div><div class="oznaka">Danas</div></div>
+            <div class="broj"><div class="vrijednost" id="najcesca">–</div><div class="oznaka">Najčešća operacija</div></div>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="kartica"><h3>Računa po danu</h3><canvas id="grafDan"></canvas></div>
+          <div class="kartica"><h3>Operacije</h3><canvas id="grafOp"></canvas></div>
+        </div>
+        <div class="kartica tabela-wrap">
+          <h3>Zadnja aktivnost po korisniku</h3>
+          <table>
+            <thead><tr><th>Korisnik</th><th>Zadnji račun</th><th>Ukupno računa</th></tr></thead>
+            <tbody id="tbodyAktivnost"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-racuni" hidden>
+        <div class="filteri">
+          <label>Od <input type="date" id="odRacuni"></label>
+          <label>Do <input type="date" id="doRacuni"></label>
+          <select id="korisnikRacuni" aria-label="Korisnik"><option value="">Svi korisnici</option></select>
+        </div>
+        <div class="kartica tabela-wrap">
+          <table>
+            <thead><tr><th>Datum</th><th>Korisnik</th><th>Izraz</th><th>Rezultat</th></tr></thead>
+            <tbody id="tbodyRacuni"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-izvjestaji" hidden>
+        <div class="kartica">
+          <h3>Izvoz CSV</h3>
+          <div class="filteri">
+            <label>Od <input type="date" id="odIzvj"></label>
+            <label>Do <input type="date" id="doIzvj"></label>
+            <select id="korisnikIzvj" aria-label="Korisnik"><option value="">Svi korisnici</option></select>
+            <button id="izvezi" type="button">Preuzmi CSV</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-admini" hidden>
+        <div class="kartica tabela-wrap">
+          <h3>Korisnici i dozvole</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Email</th><th>Admin</th><th>Pregled</th><th>Računi</th><th>Izvještaji</th><th>Admini</th><th>Status</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="tbodyAdmini"></tbody>
+          </table>
+          <p class="poruka" id="porukaAdmin"></p>
+        </div>
+        <div class="kartica tabela-wrap">
+          <h3>Audit log (zadnjih 100)</h3>
+          <table class="audit">
+            <thead><tr><th>Datum</th><th>Ko</th><th>Akcija</th><th>Detalji</th></tr></thead>
+            <tbody id="tbodyAudit"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <p class="poruka" id="porukaGreska"></p>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="script-dashboard.js"></script>
+</body>
+</html>

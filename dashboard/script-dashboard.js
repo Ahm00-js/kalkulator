@@ -12,6 +12,18 @@ let aktivniTab = "pregled";
 let dozvole = [];
 let korisnik = null;
 
+/* ---------- Tema (dijeli localStorage ključ s kalkulatorom) ---------- */
+function primijeniTemu(tamna) {
+  document.body.classList.toggle("tamna", tamna);
+  localStorage.setItem("tema", tamna ? "tamna" : "svijetla");
+  // Grafikoni čitaju boje iz CSS-a pri crtanju, pa ih ponovo iscrtavamo
+  if (grafDan || grafOp) ucitajPregled();
+}
+primijeniTemu(localStorage.getItem("tema") === "tamna");
+el("temaBtn").addEventListener("click", () =>
+  primijeniTemu(!document.body.classList.contains("tamna"))
+);
+
 /* ---------- Slack obavještenje ---------- */
 async function obavijestiSlack(akcija, meta) {
   const { data, error } = await db.functions.invoke("notify-slack", {
@@ -24,7 +36,6 @@ async function obavijestiSlack(akcija, meta) {
 }
 
 /* ---------- Pomoćne ---------- */
-// Vraća { p_od, p_do, korisnik } iz date polja i korisničkog filtera
 function filteriZa(odId, doId, korisnikId) {
   const od = el(odId).value;
   const do_ = el(doId).value;
@@ -32,14 +43,13 @@ function filteriZa(odId, doId, korisnikId) {
   return { p_od: od || null, p_do: do_ || null, korisnik: k || null };
 }
 
-// Sve filtere držimo usklađene između tabova
+// Promjena u jednom tabu važi u svim tabovima
 function sinhroniziFiltere(izvor) {
   const grupe = [
     ["odPregled", "doPregled", "korisnikPregled"],
     ["odRacuni", "doRacuni", "korisnikRacuni"],
     ["odIzvj", "doIzvj", "korisnikIzvj"],
   ];
-  const map = { 0: "od", 1: "do", 2: "k" };
   const grupaIzvora = grupe.find((g) => g.includes(izvor));
   const idx = grupaIzvora.indexOf(izvor);
   const vrijednost = el(izvor).value;
@@ -47,18 +57,6 @@ function sinhroniziFiltere(izvor) {
     if (g === grupaIzvora) return;
     el(g[idx]).value = vrijednost;
   });
-  grupe.forEach((g) => {
-    g.forEach((id) => {
-      if (id !== izvor && g[idx] !== undefined) {}
-    });
-  });
-  // Iz svih grupa uskladi istu vrijednost za isti tip polja
-  grupe.forEach((g) => {
-    g.forEach((id, j) => {
-      if (id !== izvor && j === idx) el(id).value = vrijednost;
-    });
-  });
-  void map;
 }
 
 function td(tekst) {
@@ -129,6 +127,11 @@ async function ucitajPregled() {
   el("danas").textContent = danasRed ? danasRed.broj : 0;
   el("najcesca").textContent = op.data.length ? op.data[0].operacija : "–";
 
+  const tamna = document.body.classList.contains("tamna");
+  const tekstBoja = tamna ? "#e8eefb" : "#1d2a44";
+  const mrezaBoja = tamna ? "rgba(143,160,196,0.15)" : "rgba(42,82,152,0.1)";
+  Chart.defaults.color = tekstBoja;
+
   if (grafDan) grafDan.destroy();
   grafDan = new Chart(el("grafDan"), {
     type: "bar",
@@ -136,7 +139,13 @@ async function ucitajPregled() {
       labels: dan.data.map((r) => r.dan),
       datasets: [{ label: "Računa", data: dan.data.map((r) => r.broj), backgroundColor: "#2a5298" }],
     },
-    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: mrezaBoja } },
+        x: { grid: { color: mrezaBoja } },
+      },
+    },
   });
 
   if (grafOp) grafOp.destroy();
@@ -426,7 +435,6 @@ el("prijavi").addEventListener("click", async () => {
 el("odjava").addEventListener("click", () => db.auth.signOut());
 el("izvezi").addEventListener("click", izvezi);
 
-// Promjena datuma ili korisnika u jednom tabu važi u svim tabovima
 ["odPregled", "doPregled", "korisnikPregled", "odRacuni", "doRacuni", "korisnikRacuni", "odIzvj", "doIzvj", "korisnikIzvj"].forEach((id) => {
   el(id).addEventListener("change", () => {
     sinhroniziFiltere(id);
